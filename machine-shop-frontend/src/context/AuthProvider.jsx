@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }) => {
           noEmp: decoded.NoEmpleado,
           nombre: decoded.Nombre,
           correo: decoded.Correo,
+          areaId: decoded.AreaId,
           rolId: decoded.RolId
         };
         setUser(userData);

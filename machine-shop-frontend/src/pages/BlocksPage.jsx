@@ -1,14 +1,20 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import { Modal } from '../components/Modal';
 import { BlocksForm } from "./forms/BlocksForm";
 import api from '../api/api';
 import socket from "../api/socket";
-import { FiSearch, FiPlus, FiFileText, FiCpu, FiArrowRight, FiImage, FiUser, FiCalendar, FiClock } from "react-icons/fi";
+import { FiSearch, FiPlus, FiFileText, FiCpu, FiArrowRight, FiImage, FiUser, FiCalendar, FiClock, FiChevronLeft, FiChevronRight, FiTrash2 } from "react-icons/fi";
 import { showToast } from "nextjs-toast-notify";
+import Swal from 'sweetalert2';
+import { AuthContext } from '../context/AuthProvider';
 
 export const BlocksPage = () => {
+  const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
+
   const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -16,7 +22,14 @@ export const BlocksPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null);
 
-  const IMAGE_BASE_URL = 'http://localhost:3002/uploads/bloques/';
+  // ✅ Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
+
+  const IMAGE_BASE_URL = `${api.defaults.baseURL}/uploads/bloques/`;
+
+  // ✅ Verificar si es administrador
+  const isAdmin = Number(user?.rolId) === 1;
 
   useEffect(() => {
     fetchBlocks();
@@ -25,6 +38,11 @@ export const BlocksPage = () => {
       socket.off("bloquesActualizados", fetchBlocks);
     };
   }, []);
+
+  const goToBlocksDetails = (block) => {
+    sessionStorage.setItem("selectedBlockId", block.NoParte);
+    navigate("/blocksDetails");
+  };
 
   const fetchBlocks = async () => {
     setLoading(true);
@@ -40,6 +58,7 @@ export const BlocksPage = () => {
       }));
 
       setBlocks(processedData);
+      setCurrentPage(1);
     } catch (error) {
       console.error("Error al obtener bloques:", error);
       setBlocks([]);
@@ -69,16 +88,79 @@ export const BlocksPage = () => {
     return `${IMAGE_BASE_URL}${imagen}`;
   };
 
+  const handleDelete = async (NoParte) => {
+    try {
+      const result = await Swal.fire({
+        title: '¿Estás seguro?',
+        html: `¿Deseas eliminar al block <strong>${NoParte || ''}</strong>?<br>Esta acción no se puede deshacer.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#D71928',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        background: '#3F3F42',
+        color: '#fff',
+        customClass: {
+          popup: 'swal-dark-popup'
+        }
+      });
+
+      if (!result.isConfirmed) return;
+
+      const response = await api.delete(`/blocksDelete/${NoParte}`);
+
+      if (response.data.success) {
+        showToast.success(response.data.message, {
+          duration: 3000,
+          position: "top-right",
+        });
+        fetchBlocks();
+      }
+
+    } catch (error) {
+      console.error(error);
+      const errorMessage = error.response?.data?.error || 'Error al eliminar participante';
+      showToast.error(errorMessage, {
+        duration: 4000,
+        position: "top-right",
+      });
+    }
+  };
+
+  // ✅ Filtrar bloques por búsqueda
   const filteredBlocks = blocks.filter(block =>
     block.NoParte?.toLowerCase().includes(search.toLowerCase()) ||
     block.Descripcion?.toLowerCase().includes(search.toLowerCase())
   );
 
+  // ✅ Paginación
+  const indexLast = currentPage * itemsPerPage;
+  const indexFirst = indexLast - itemsPerPage;
+  const currentBlocks = filteredBlocks.slice(indexFirst, indexLast);
+  const totalPages = Math.ceil(filteredBlocks.length / itemsPerPage);
+
+  const goToPage = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // ✅ Resetear a página 1 cuando cambia la búsqueda
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
   return (
     <>
       <Navbar />
-      <Sidebar />
-      <div className="page-container">
+      {/* ✅ Renderizar Sidebar solo si es admin */}
+      {isAdmin && <Sidebar />}
+      
+      {/* ✅ Agregar clase para ajustar el contenedor cuando no hay sidebar */}
+      <div className={`page-container ${!isAdmin ? 'full-width' : ''}`}>
+        {/* HEADER */}
         <div className="blocks-header">
           <div>
             <h1>Blocks</h1>
@@ -88,15 +170,22 @@ export const BlocksPage = () => {
             <FiPlus className="icon" /> New Block
           </button>
         </div>
+
+        {/* SEARCH */}
         <div className="blocks-search">
           <FiSearch />
           <input
             type="text"
-            placeholder="Search by Part Number or Description..."
+            placeholder="Search by Part Number..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          <span className="search-results-count">
+            {filteredBlocks.length} blocks found
+          </span>
         </div>
+
+        {/* GRID DE BLOQUES */}
         <div className="blocks-grid">
           {loading ? (
             <div className="loading-state">Loading blocks...</div>
@@ -107,15 +196,22 @@ export const BlocksPage = () => {
               <p>Try adjusting your search or create a new block</p>
             </div>
           ) : (
-            filteredBlocks.map((block) => {
+            currentBlocks.map((block) => {
               const imageUrl = getImageUrl(block.Imagen);
               return (
                 <div className="block-card" key={block.Id || block.NoParte}>
-                  <div className="block-actions">
+                  <div className="block-actions-left">
                     <button className="edit-btn" onClick={() => handleEdit(block)}>
                       Edit
                     </button>
                   </div>
+
+                  <div className="block-actions-right">
+                    <button className="delete-btn" onClick={() => handleDelete(block.NoParte)}>
+                      <FiTrash2 />
+                    </button>
+                  </div>
+
                   <div className="block-image">
                     {imageUrl ? (
                       <img
@@ -128,13 +224,13 @@ export const BlocksPage = () => {
                           const placeholder = document.createElement('div');
                           placeholder.className = 'block-image-placeholder';
                           placeholder.innerHTML = `
-                                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                                                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                                                            <polyline points="21 15 16 10 5 21"></polyline>
-                                                        </svg>
-                                                        <span>Error loading image</span>
-                                                    `;
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                              <polyline points="21 15 16 10 5 21"></polyline>
+                            </svg>
+                            <span>Error loading image</span>
+                          `;
                           parent.appendChild(placeholder);
                         }}
                       />
@@ -147,9 +243,7 @@ export const BlocksPage = () => {
                   </div>
                   <div className="block-body">
                     <h2>{block.NoParte || 'N/A'}</h2>
-                    <p>{block.Descripcion || 'No description'}</p>
 
-                    {/* INFO DEL CREADOR Y FECHA */}
                     <div className="block-meta">
                       <div className="meta-item">
                         <FiUser className="meta-icon" />
@@ -167,18 +261,10 @@ export const BlocksPage = () => {
                       </div>
                     </div>
 
-                    {/* <div className="block-info">
-                      <div>
-                        <FiFileText />
-                        {block.dibujos || 0} Drawings
-                      </div>
-                      <div>
-                        <FiCpu />
-                        {block.programas || 0} Programs
-                      </div>
-                    </div>
-                   */}
-                    <button className="button-icon button-red">
+                    <button
+                      className="button-icon button-red"
+                      onClick={() => goToBlocksDetails(block)}
+                    >
                       Explore
                       <FiArrowRight />
                     </button>
@@ -189,23 +275,63 @@ export const BlocksPage = () => {
           )}
         </div>
 
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Block">
-          <BlocksForm
-            onSuccess={() => {
-              setIsModalOpen(false);
-            }}
-          />
-        </Modal>
-        <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Block">
-          <BlocksForm
-            block={selectedBlock}
-            isEditing={true}
-            onSuccess={() => {
-              setIsEditModalOpen(false);
-            }}
-          />
-        </Modal>
+        {/* ✅ PAGINACIÓN */}
+        {!loading && filteredBlocks.length > 0 && (
+          <div className="blocks-pagination">
+            <div className="pagination-info">
+              Showing {indexFirst + 1} - {Math.min(indexLast, filteredBlocks.length)} of {filteredBlocks.length} blocks
+            </div>
+
+            <div className="pagination-controls">
+              <button
+                onClick={() => goToPage(currentPage - 1)}
+                className={`pagination-btn ${currentPage === 1 ? 'disabled' : ''}`}
+                disabled={currentPage === 1}
+              >
+                <FiChevronLeft />
+              </button>
+
+              <div className="pagination-pages">
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => goToPage(i + 1)}
+                    className={`pagination-page ${currentPage === i + 1 ? 'active' : ''}`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => goToPage(currentPage + 1)}
+                className={`pagination-btn ${currentPage === totalPages ? 'disabled' : ''}`}
+                disabled={currentPage === totalPages}
+              >
+                <FiChevronRight />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Block">
+        <BlocksForm
+          onSuccess={() => {
+            setIsModalOpen(false);
+          }}
+        />
+      </Modal>
+
+      <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Block">
+        <BlocksForm
+          block={selectedBlock}
+          isEditing={true}
+          onSuccess={() => {
+            setIsEditModalOpen(false);
+          }}
+        />
+      </Modal>
     </>
   );
 };

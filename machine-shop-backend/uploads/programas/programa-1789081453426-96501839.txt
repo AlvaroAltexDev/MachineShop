@@ -1,0 +1,230 @@
+    IdScrap: datosScrap.IdScrap,
+    NoParte: noParte,
+    Codigo: datosScrap.Codigo,
+    Cantidad: datosScrap.Cantidad,
+    Responsable: datosScrap.Responsable,
+    NuevaLongitudFT: datosScrap.LongitudFT,
+    NuevaLongitudIN: datosScrap.LongitudIN,
+    CodigoDefecto: datosScrap.CodigoDefecto,
+    TipoScrap: datosScrap.TipoScrap,
+    TerminalA: datosScrap.TerminalA,
+    TerminalB: datosScrap.TerminalB,
+    Cable: datosScrap.Cable,
+    TextoImpreso: datosScrap.TextoImpreso,
+    Fecha: datosScrap.Fecha,
+    DañadoEn: datosScrap.DañadoEnId,
+
+
+
+  const allowedPatterns = {
+    IdScrap: /^[0-9]+$/,
+    NoParte: /^[a-zA-Z0-9.\#]+$/, // Letras, números, punto , gatoy guiones
+    Codigo: /^[a-zA-Z0-9-]+$/,
+    Cantidad: /^[0-9]+$/,
+    Responsable: /^[0-9]+$/,
+    NuevaLongitudFT: /^[0-9.]+$/,
+    NuevaLongitudIN: /^[0-9.]+$/,
+    CodigoDefecto: /^[a-zA-Z0-9]+$/,
+    TerminalA: /^[a-zA-Z0-9.\-]*$/,
+    TerminalB: /^[a-zA-Z0-9.\-]*$/,
+    TipoScrap: /^[a-zA-Z0-9.\-]+$/,
+    Cable: /^[a-zA-Z0-9\-/]+$/,
+    TextoImpreso: /^[a-zA-Z0-9.\-]*$/,
+    Fecha: /^[a-zA-Z0-9.\-:]*$/,
+    DañadoEn: /^[0-9]+$/,
+  };
+
+
+
+
+ import React, {useState, useEffect, useRef} from 'react';
+import axios from 'axios';
+import Logo from '../../../assets/LogoAltex.png'
+import { Header } from '../../../components/Header';
+import { IoMdArrowRoundBack } from "react-icons/io";
+import { BsFillTrash3Fill } from "react-icons/bs";
+import { AiFillEdit } from "react-icons/ai";
+import { FaHistory } from "react-icons/fa";
+import { useNavigate } from 'react-router-dom';
+
+
+export const ImprimirTotales = () => {
+  const datoCNT = JSON.parse(localStorage.getItem('CNT'));
+const componenteRef = useRef();
+//js 
+const [datosBoleta, setDatosBoleta] = useState(null);
+const [isModalOpen, setIsModalOpen] = useState(false);
+//-----------------ALMACENAR DATOS-------------------------
+const [Scrap,setCables]=useState([]);
+const [checks, setChecks] = useState({});
+//-----------------HISTORIAL SCRAP--------------------------
+const [isModalHistorialScrapOpen, setIsModalHistorialScrapOpen] = useState(true);
+
+  const handleClick = (index) => {
+    setChecks(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+useEffect(() => {
+  const dato = JSON.parse(localStorage.getItem('boletaScrap'));
+  if(dato) {
+    const NoOrden = dato.NoOrden;
+    const fetchData = async () => {
+      try {
+        const scrap = await axios.get('http://localhost:3000/BuscarScrap',{
+          params: { NoOrden }
+        });
+        setCables(scrap.data);
+        console.log(scrap.data);
+      } catch(error){
+        console.error('Error al obtener los datos', error);
+      }
+    };
+    fetchData();      
+  }
+}, []);
+useEffect(() => {
+  const datosGuardados = JSON.parse(localStorage.getItem('boletaScrap'));
+  if (datosGuardados) {
+    setDatosBoleta(datosGuardados);
+  }
+  if (!datosGuardados) {
+    setIsModalOpen(false);
+  }
+  else{
+    setIsModalOpen(true);
+  }
+}, []);
+
+const agrupados = {
+  cables: {},
+  terminales: {}
+};
+
+Scrap.forEach(scrap => {
+  const fechaFormateada = new Date(scrap.Fecha).toLocaleDateString('es-ES');
+
+  if (scrap.TipoScrap === 'Cable') {
+    // Crear una clave única usando el código del cable
+    const clave = scrap.Codigo; // o puedes usar scrap.Cable si prefieres
+    
+    // Agrupar cables por código
+    if (agrupados.cables[clave]) {
+      // Sumar la LongitudFT si ya existe un cable con el mismo código
+      agrupados.cables[clave].LongitudFT += parseFloat(scrap.LongitudFT) || 0;
+      // También puedes sumar otras cantidades si es necesario
+      // agrupados.cables[clave].Cantidad += parseFloat(scrap.Cantidad) || 0;
+    } else {
+      // Si no existe, crear un nuevo registro
+      agrupados.cables[clave] = {
+        ...scrap,
+        LongitudFT: parseFloat(scrap.LongitudFT) || 0,
+        FechaFormateada: fechaFormateada
+      };
+    }
+  }
+    if (scrap.TerminalA) {
+    const cantidadA = parseFloat(scrap.Cantidad);
+    if (agrupados.terminales[scrap.TerminalA]) {
+      agrupados.terminales[scrap.TerminalA].Cantidad += cantidadA;
+    } else {
+      agrupados.terminales[scrap.TerminalA] = {
+        ...scrap,
+        Terminal: scrap.TerminalA,
+        Cantidad: cantidadA,
+        FechaFormateada: fechaFormateada
+      };
+    }
+  }
+
+  // Agrupar TerminalB
+  if (scrap.TerminalB) {
+    const cantidadB = parseFloat(scrap.Cantidad);
+    if (agrupados.terminales[scrap.TerminalB]) {
+      agrupados.terminales[scrap.TerminalB].Cantidad += cantidadB;
+    } else {
+      agrupados.terminales[scrap.TerminalB] = {
+        ...scrap,
+        Terminal: scrap.TerminalB,
+        Cantidad: cantidadB,
+        FechaFormateada: fechaFormateada
+      };
+    }
+  }
+});
+
+  return (
+    <div>
+      <Header/>
+      <div style={{width:'100%', display:'Ruby'}}>
+        <div className='Volver' style={{width:'10%'}}><label style={{width:'100%', color:'black'}}><IoMdArrowRoundBack style={{fontSize:'xx-large', cursor:'pointer'}} onClick={()=>window.location.replace('/CapturaScrap')}/></label></div>
+        <div style={{width:'90%', textAlign:'left'}}><h1 style={{width:'100%', paddingLeft:'38%'}}>TOTALES</h1></div>
+      </div>
+        <div style={{display:'ruby'}}>
+            <button onClick={() => window.print()}>
+                Imprimir Boleta
+            </button>
+        </div>
+        <div>
+          <div>
+            <table>
+              <tr>
+                <td style={{backgroundColor:'white', width:'25%'}} className='QuitarBordeDerecho' rowSpan={4}><img style={{width:'100%'}} src={Logo} alt='altexLogo'/></td>
+                <td style={{textAlign:'left',paddingLeft:'270px',borderBottom:'none', fontWeight:'bold',fontSize:25, color:'white', backgroundColor:'#242222', width:300}} colSpan={3}>BOLETA DE SCRAP</td>
+              </tr>
+             <tr>
+              <td style={{  borderBottom:'none', textAlign:'right', paddingRight:'2%'}} className='FilaIzquierda'>Número de orden</td>
+              <td className='FilaDerecha' >{datosBoleta?.NoOrden || ''}</td>
+             </tr>
+
+             <tr>
+              <td style={{ borderTop:'none', borderBottom:'none', textAlign:'right',  paddingRight:'2%'}} className='FilaIzquierda'>Número de parte</td>
+              <td className='FilaDerecha' >{datosBoleta?.NoParte || ''}</td>
+             </tr>
+              <tr>
+              <td style={{ borderTop:'none', textAlign:'right', width:'40%', paddingRight:'2%'}} className='FilaIzquierda'>Línea / Área</td>
+              <td className='FilaDerecha' >{datosBoleta?.Area || ''}</td>
+             </tr>
+            </table>
+<table style={{marginBottom:50}}>
+      <thead>
+        <tr>
+          <th style={{width: 325}}>N/P COMPONENTES</th>
+          <th style={{width: 200}}>DESCRIPCIÓN</th>
+          <th style={{width: 100}}>CANTIDAD</th>
+          <th style={{width: 180}}>CÓDIGO DE DEFECTO</th>
+          <th style={{width: 280}}>RESPONSABLE</th>
+          <th style={{width: 180}}>FECHA</th>
+        </tr>
+      </thead>
+      <tbody>
+        {Object.values(agrupados.cables).map((cable, index) => (
+          <tr key={`cable-${index}`}>
+            <td>{cable.Cable}</td>
+            <td>{cable.Codigo}---{cable.TextoImpreso}</td>
+            <td>{Number(cable.LongitudFT).toFixed(3)} FT</td>
+            <td>{cable.CodigoDefecto}</td>
+            <td>{cable.Responsable}</td>
+            <td>{cable.FechaFormateada}</td>
+          </tr>
+        ))}
+
+        {Object.values(agrupados.terminales).map((terminal, index) => (
+          <tr key={`terminal-${index}`}>
+            <td>{terminal.Terminal}</td>
+            <td>Terminal</td>
+            <td>{terminal.Cantidad}</td>
+            <td>{terminal.CodigoDefecto}</td>
+            <td>{terminal.Responsable}</td>
+            <td>{terminal.FechaFormateada}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+          </div>
+          
+        </div>
+    </div>
+  )
+}

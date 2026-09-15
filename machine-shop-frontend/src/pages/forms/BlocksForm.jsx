@@ -1,46 +1,49 @@
 import React, { useEffect, useState, useContext } from 'react';
 import api from '../../api/api';
 import { AuthContext } from '../../context/AuthProvider';
-import { FiUploadCloud, FiX } from "react-icons/fi";
+import { FiUploadCloud, FiX, FiBox, FiShield, FiAlertTriangle, FiCheckCircle } from "react-icons/fi";
 import { showToast } from 'nextjs-toast-notify';
 
-export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
+export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) => {
     const { user } = useContext(AuthContext);
     const [conector, setConector] = useState([]);
     const [terminal, setTerminal] = useState([]);
     const [loading, setLoading] = useState(false);
     const [preview, setPreview] = useState(null);
+    const isAdmin = Number(user?.rolId) === 1;
+
     const [formData, setFormData] = useState({
         NoParte: '',
         Imagen: '',
         CantidadPines: '',
+        CantPinPresencia: '',
         TipoConectorId: '',
         TipoTerminalId: '',
-        Candado: 0, // ← Cambia de '' a 0 (tinyint)
-        LlevaCandado: false,
-        FechaAlta: new Date().toISOString().slice(0, 16), // ← Cambiado para incluir hora
-        Creador: user?.noEmp || ''  // ← Usar noEmp (número de empleado)
+        ConectorFisico: 0, // ← 0 = No, 1 = Sí
+        FechaAlta: new Date().toISOString().slice(0, 16),
+        Creador: user?.noEmp || ''
     });
 
     const IMAGE_BASE_URL = 'http://localhost:3002/uploads/bloques/';
 
     useEffect(() => {
         if (isEditing && block) {
+            console.log("🔍 Datos del bloque:", block);
+            console.log("🔍 ConectorFisico:", block.ConectorFisico);
+            console.log("🔍 Tipo:", typeof block.ConectorFisico);
 
-            console.log("Candado:", block.Candado);         
-            console.log("Tipo:", typeof block.Candado);
             setFormData({
                 NoParte: block.NoParte || '',
                 Imagen: block.Imagen || '',
                 CantidadPines: block.CantidadPines || '',
+                CantPinPresencia: block.CantPinPresencia || '',
                 TipoConectorId: String(block.TipoConectorId || ''),
                 TipoTerminalId: String(block.TipoTerminalId || ''),
-                Candado: block.Candado !== undefined ? block.Candado : 0,
-                LlevaCandado: block.Candado === 1 ? true : false,
+                ConectorFisico: block.ConectorFisico !== undefined ? Number(block.ConectorFisico) : 0,
                 FechaAlta: block.FechaAlta
                     ? new Date(block.FechaAlta).toISOString().slice(0, 16)
                     : new Date().toISOString().slice(0, 16),
-                Creador: block.Creador || user?.noEmp || ''  // ← Usar noEmp
+                Creador: block.Creador || user?.noEmp || ''
             });
 
             if (block.Imagen) {
@@ -50,9 +53,6 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
                     } else {
                         setPreview(`${IMAGE_BASE_URL}${block.Imagen}`);
                     }
-                } else if (typeof block.Imagen === 'object') {
-                    console.log('La imagen es un Buffer, no se puede previsualizar directamente');
-                    setPreview(null);
                 }
             }
         }
@@ -104,6 +104,16 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
         }));
     };
 
+    // ✅ Manejar el cambio de ConectorFisico
+    const handleConectorFisicoChange = (e) => {
+        const value = e.target.checked ? 1 : 0;
+        console.log('🔄 ConectorFisico cambiado a:', value);
+        setFormData(prev => ({
+            ...prev,
+            ConectorFisico: value
+        }));
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -112,22 +122,21 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
             const dataToSend = new FormData();
             dataToSend.append('NoParte', formData.NoParte);
             dataToSend.append('CantidadPines', formData.CantidadPines);
+            dataToSend.append('CantPinPresencia', formData.CantPinPresencia);
             dataToSend.append('TipoConectorId', formData.TipoConectorId);
             dataToSend.append('TipoTerminalId', formData.TipoTerminalId);
-            dataToSend.append('Candado', formData.LlevaCandado ? 1 : 0);
+
+            // ✅ Enviar ConectorFisico correctamente
+            const conectorFisicoValue = Number(formData.ConectorFisico);
+            dataToSend.append('ConectorFisico', conectorFisicoValue);
+            console.log('📤 Enviando ConectorFisico:', conectorFisicoValue);
 
             let fechaHora = formData.FechaAlta;
             if (fechaHora && !fechaHora.includes(' ')) {
-                // Si viene en formato ISO, lo convertimos
                 fechaHora = fechaHora.replace('T', ' ');
             }
             dataToSend.append('FechaAlta', fechaHora);
-
             dataToSend.append('Creador', formData.Creador);
-
-            console.log('Fecha a enviar:', fechaHora); // Debug
-            // Enviar el NoEmpleado como Creador
-            console.log('Creador a enviar (NoEmpleado):', formData.Creador);
 
             if (formData.Imagen instanceof File) {
                 dataToSend.append('Imagen', formData.Imagen);
@@ -164,10 +173,12 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
                     NoParte: '',
                     Imagen: '',
                     CantidadPines: '',
+                    CantPinPresencia: '',
                     TipoConectorId: '',
                     TipoTerminalId: '',
+                    ConectorFisico: 0,
                     FechaAlta: new Date().toISOString().slice(0, 16),
-                    Creador: user?.noEmp || ''  // ← Usar noEmp
+                    Creador: user?.noEmp || ''
                 });
                 setPreview(null);
             }
@@ -187,6 +198,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
             setLoading(false);
         }
     };
+
     const tipoConectorOptions = conector.map(c => ({
         value: String(c.IdTipoConector),
         label: c.TipoConector
@@ -224,6 +236,20 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
                             required
                         />
                     </div>
+
+                    <div className="form-group">
+                        <label className="form-label">Cant Pines de Presencia</label>
+                        <input
+                            type="number"
+                            name="CantPinPresencia"
+                            min="0"
+                            value={formData.CantPinPresencia}
+                            onChange={handleChange}
+                            className="form-input"
+                            required
+                        />
+                    </div>
+
                     <div className="form-group">
                         <label className="form-label">Tipo Conector</label>
                         <select
@@ -241,6 +267,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
                             ))}
                         </select>
                     </div>
+
                     <div className="form-group">
                         <label className="form-label">Tipo Terminal</label>
                         <select
@@ -258,36 +285,54 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
                             ))}
                         </select>
                     </div>
-                    <label className="checkbox-group">
-                        <input
-                            type="checkbox"
-                            checked={formData.LlevaCandado}
-                            onChange={(e) =>
-                                setFormData({
-                                    ...formData,
-                                    LlevaCandado: e.target.checked
-                                })
-                            }
-                        />
-                        <span>Uses Lock</span>
-                        <span className="lock-status">
-                            {formData.LlevaCandado ? 'Locked' : 'Unlocked'}
-                        </span>
-                    </label>
-                    {/* <div className="form-group">
-                        <label className="form-label">Description</label>
-                        <textarea
-                            rows="3"
-                            name="Descripcion"
-                            value={formData.Descripcion}
-                            onChange={handleChange}
-                            className="form-textarea"
-                        />
-                    </div>*/}
                 </div>
 
                 {/* COLUMNA DERECHA - IMAGEN */}
                 <div className="form-column">
+                    {/* ✅ Conector Fisico - En contenedor gris tipo card */}
+                    <div className="form-group conector-fisico-card">
+                        <div className="conector-fisico-header">
+                            <span className="conector-fisico-title">
+                                <FiBox className="conector-fisico-icon" />
+                                Conector Físico
+                            </span>
+                            {isAdmin && isEditing && (
+                                <span className="admin-badge">
+                                    <FiShield /> Admin
+                                </span>
+                            )}
+                        </div>
+                        <div className="conector-fisico-content">
+                            <label className="switch-container">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.ConectorFisico === 1}
+                                    onChange={handleConectorFisicoChange}
+                                    disabled={!isAdmin && isEditing}
+                                    className="switch-input"
+                                />
+                                <span className="switch-slider"></span>
+                                <span className="switch-label">
+                                    <span className="switch-text">¿Tiene conector físico?</span>
+                                    <span className="switch-status">
+                                        {formData.ConectorFisico === 1 ? 'Activado' : 'Desactivado'}
+                                    </span>
+                                </span>
+                            </label>
+                            {!isAdmin && isEditing && (
+                                <div className="conector-fisico-hint warning">
+                                    <FiAlertTriangle />
+                                    Solo los administradores pueden cambiar esta opción
+                                </div>
+                            )}
+                            {isAdmin && isEditing && (
+                                <div className="conector-fisico-hint success">
+                                    <FiCheckCircle />
+                                    Tienes permisos de administrador para modificar esta opción
+                                </div>
+                            )}
+                        </div>
+                    </div>
                     <label className="form-label">Block Image</label>
 
                     <div
@@ -344,6 +389,16 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess }) => {
             </div>
 
             <div className="form-actions">
+                {onCancel && (
+                    <button
+                        type="button"
+                        className="button-cancel"
+                        onClick={onCancel}
+                        disabled={loading}
+                    >
+                        Cancelar
+                    </button>
+                )}
                 <button
                     type="submit"
                     className="button-icon button-green"

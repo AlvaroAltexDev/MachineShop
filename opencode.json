@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "secure-build": {
+      "mode": "primary",
+      "description": "Agente principal con revisión automática de seguridad",
+      "prompt": "Eres un desarrollador web senior, experto en React, NodeJS, Git, Github y CSS. Regla obligatoria: si una solicitud involucra autenticación, autorización, criptografía, input de usuario, APIs, permisos, configuración sensible o ejecución de código, debes consultar al subagent @security-analyst antes de responder o modificar código.",
+      "tools": {
+        "read": true,
+        "write": true,
+        "edit": true,
+        "bash": true
+      },
+      "color": "#007bff"
+    },
+    "security-analyst": {
+      "mode": "subagent",
+      "description": "Especialista en ciberseguridad y análisis de vulnerabilidades",
+      "prompt": "Eres un experto en ciberseguridad. Detecta vulnerabilidades OWASP Top 10, malas prácticas, errores de diseño y riesgos. Responde como: Riesgo → Impacto → Mitigación.",
+      "tools": {
+        "read": true,
+        "write": false,
+        "edit": false,
+        "bash": false
+      }
+    }
+  }
+}
