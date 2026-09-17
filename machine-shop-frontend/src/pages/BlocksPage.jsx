@@ -6,7 +6,7 @@ import { Modal } from '../components/Modal';
 import { BlocksForm } from "./forms/BlocksForm";
 import api from '../api/api';
 import socket from "../api/socket";
-import { FiSearch, FiPlus, FiFileText, FiCpu, FiArrowRight, FiImage, FiUser, FiCalendar, FiClock, FiChevronLeft, FiChevronRight, FiTrash2 } from "react-icons/fi";
+import { FiSearch, FiPlus, FiFileText, FiCpu, FiArrowRight, FiImage, FiUser, FiCalendar, FiClock, FiChevronLeft, FiChevronRight, FiTrash2, FiCheckCircle } from "react-icons/fi";
 import { showToast } from "nextjs-toast-notify";
 import Swal from 'sweetalert2';
 import { AuthContext } from '../context/AuthProvider';
@@ -200,17 +200,21 @@ export const BlocksPage = () => {
               const imageUrl = getImageUrl(block.Imagen);
               return (
                 <div className="block-card" key={block.Id || block.NoParte}>
-                  <div className="block-actions-left">
-                    <button className="edit-btn" onClick={() => handleEdit(block)}>
-                      Edit
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="block-actions-left">
+                      <button className="edit-btn" onClick={() => handleEdit(block)}>
+                        Edit
+                      </button>
+                    </div>
+                  )}
 
-                  <div className="block-actions-right">
-                    <button className="delete-btn" onClick={() => handleDelete(block.NoParte)}>
-                      <FiTrash2 />
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="block-actions-right">
+                      <button className="delete-btn" onClick={() => handleDelete(block.NoParte)}>
+                        <FiTrash2 />
+                      </button>
+                    </div>
+                  )}
 
                   <div className="block-image">
                     {imageUrl ? (
@@ -242,7 +246,12 @@ export const BlocksPage = () => {
                     )}
                   </div>
                   <div className="block-body">
-                    <h2>{block.NoParte || 'N/A'}</h2>
+                    <div className="block-title-row">
+                      <h2 title={block.NoParte || 'N/A'}>{block.NoParte || 'N/A'}</h2>
+                      <span className={`conector-tag ${Number(block.ConectorFisico) === 1 ? 'has-conector' : 'no-conector'}`}>
+                        {Number(block.ConectorFisico) === 1 ? (<><FiCheckCircle className="inv-check" /> Conector físico</>) : '❌ Sin conector'}
+                      </span>
+                    </div>
 
                     <div className="block-meta">
                       <div className="meta-item">
@@ -261,13 +270,15 @@ export const BlocksPage = () => {
                       </div>
                     </div>
 
-                    <button
-                      className="button-icon button-red"
-                      onClick={() => goToBlocksDetails(block)}
-                    >
-                      Explore
-                      <FiArrowRight />
-                    </button>
+                    {isAdmin && (
+                      <button
+                        className="button-icon button-red"
+                        onClick={() => goToBlocksDetails(block)}
+                      >
+                        Explore
+                        <FiArrowRight />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

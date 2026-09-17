@@ -1127,9 +1127,7 @@ useEffect(() => {
 
                         <div className="block-detail-info">
                             <div className="detail-tags">
-                                <span>{blockInfo?.TipoConector || 'Sin conector'}</span>
-                                <span>{blockInfo?.TipoTerminal || 'Sin terminal'}</span>
-                                <span>{blockInfo?.CantidadPines || 0} Pins</span>
+                                <span>{blockInfo?.CantidadPines || 0} Pins · {blockInfo?.TipoTerminal || 'Sin terminal'}</span>
                                 {blockInfo?.CantPinPresencia >= 1 ? (
                                     <span className="has-lock">
                                         🔒 Lock ({blockInfo.CantPinPresencia} pins)

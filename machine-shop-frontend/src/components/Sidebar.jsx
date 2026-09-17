@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  FiHome, 
-  FiTool, 
-  FiClipboard, 
-  FiBarChart2, 
+import {
+  FiHome,
+  FiTool,
+  FiClipboard,
+  FiBarChart2,
   FiSettings,
-  FiChevronRight
+  FiChevronRight,
+  FiBox
 } from "react-icons/fi";
 import { MdOutlineMenuOpen } from "react-icons/md";
 import { MdOutlineMenu } from "react-icons/md";
@@ -102,6 +103,20 @@ const Sidebar = () => {
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+
+        {/* ITEM INVENTARIO */}
+        <div className="sidebar-item">
+          <NavLink
+            to="/inventario"
+            className={({ isActive }) =>
+              "sidebar-link " + (isActive ? "active" : "")
+            }
+          >
+            <FiBox className="sidebar-icon" />
+            {isOpen && <span>Inventario</span>}
+            {!isOpen && <span className="tooltip">Inventario</span>}
+          </NavLink>
         </div>
       </nav>
     </aside>

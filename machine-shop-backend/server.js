@@ -921,6 +921,15 @@ app.put('/ticketsUpdate/:id', async (req, res) => {
             return res.status(400).json({ error: 'No se puede actualizar un ticket en papelera' });
         }
 
+        // 🔒 Candado ENTREGADO: un ticket entregado ya no admite actualizaciones
+        const [estadoEntregadoCheck] = await pool.query(
+            'SELECT IdEstado FROM estados WHERE NombreEstado = ?',
+            ['ENTREGADO']
+        );
+        if (estadoEntregadoCheck.length > 0 && ticket.EstadoId === estadoEntregadoCheck[0].IdEstado) {
+            return res.status(400).json({ error: 'No se puede actualizar un ticket ENTREGADO' });
+        }
+
         // ✅ VALIDACIÓN: Verificar si es CRÍTICO y si ya existe uno en el área
         const criticaId = 4; // ID de la prioridad "CRITICA" en tu BD
 
@@ -2457,8 +2466,23 @@ app.put('/ticketsDeleteSoft/:id', async (req, res) => {
         const hermosilloTime = new Date(now.getTime() - (7 * 60 * 60 * 1000));
         const fechaEliminacion = hermosilloTime.toISOString().slice(0, 19).replace('T', ' ');
 
+        // 🔒 Candado ENTREGADO: un ticket entregado no se puede mandar a papelera
+        const [ticketEstado] = await pool.query(
+            `SELECT t.EstadoId FROM tickets t WHERE t.IdTicket = ?`,
+            [id]
+        );
+        if (ticketEstado.length > 0) {
+            const [entregado] = await pool.query(
+                'SELECT IdEstado FROM estados WHERE NombreEstado = ?',
+                ['ENTREGADO']
+            );
+            if (entregado.length > 0 && ticketEstado[0].EstadoId === entregado[0].IdEstado) {
+                return res.status(400).json({ error: 'No se puede mover a papelera un ticket ENTREGADO' });
+            }
+        }
+
         const [result] = await pool.query(
-            `UPDATE tickets 
+            `UPDATE tickets
              SET Activo = 0, FechaEliminacion = ?
              WHERE IdTicket = ?`,
             [fechaEliminacion, id]
@@ -3305,6 +3329,643 @@ app.delete('/notificaciones/limpiar-leidas', async (req, res) => {
         res.json({ success: true, eliminadas: result.affectedRows });
     } catch (error) {
         console.error('Error limpiando notificaciones:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!INVENTARIO!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+// Helper: validar admin por UsuarioId (convención del proyecto)
+const checkAdminInventario = async (UsuarioId) => {
+    if (!UsuarioId) return false;
+    const [rows] = await pool.query('SELECT RolId FROM usuarios WHERE NoEmpleado = ?', [UsuarioId]);
+    return rows.length > 0 && Number(rows[0].RolId) === 1;
+};
+
+/*---------------------------------------------------TIPOS---------------------------------------------------*/
+app.get('/tiposMaterialSelect', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT IdTipoMaterial, TipoMaterial FROM tipo_materiales ORDER BY TipoMaterial');
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener tipos de material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/tiposMaterialInsert', async (req, res) => {
+    try {
+        const { TipoMaterial, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!TipoMaterial || !String(TipoMaterial).trim()) {
+            return res.status(400).json({ error: 'TipoMaterial es requerido' });
+        }
+        const [result] = await pool.query(
+            'INSERT INTO tipo_materiales (TipoMaterial) VALUES (?)',
+            [String(TipoMaterial).trim()]
+        );
+        io.emit('inventarioActualizado');
+        res.status(201).json({ message: 'Tipo de material creado', id: result.insertId });
+    } catch (error) {
+        console.error('Error al crear tipo de material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/tiposMaterialDelete/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { UsuarioId } = req.body || {};
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        const [uso] = await pool.query('SELECT COUNT(*) AS total FROM materiales WHERE TipoMaterialId = ?', [id]);
+        if (uso[0].total > 0) {
+            return res.status(400).json({ error: `No se puede eliminar: ${uso[0].total} material(es) usan este tipo` });
+        }
+        const [result] = await pool.query('DELETE FROM tipo_materiales WHERE IdTipoMaterial = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Tipo no encontrado' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Tipo eliminado' });
+    } catch (error) {
+        console.error('Error al eliminar tipo de material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/tiposHerramientaSelect', async (req, res) => {
+    try {
+        const [rows] = await pool.query('SELECT IdTipoHerramienta, TipoHerramienta FROM tipo_herramienta ORDER BY TipoHerramienta');
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener tipos de herramienta:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/tiposHerramientaInsert', async (req, res) => {
+    try {
+        const { TipoHerramienta, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!TipoHerramienta || !String(TipoHerramienta).trim()) {
+            return res.status(400).json({ error: 'TipoHerramienta es requerido' });
+        }
+        const [result] = await pool.query(
+            'INSERT INTO tipo_herramienta (TipoHerramienta) VALUES (?)',
+            [String(TipoHerramienta).trim()]
+        );
+        io.emit('inventarioActualizado');
+        res.status(201).json({ message: 'Tipo de herramienta creado', id: result.insertId });
+    } catch (error) {
+        console.error('Error al crear tipo de herramienta:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/tiposHerramientaDelete/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { UsuarioId } = req.body || {};
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        const [uso] = await pool.query('SELECT COUNT(*) AS total FROM herramientas WHERE TipoHerramientaId = ?', [id]);
+        if (uso[0].total > 0) {
+            return res.status(400).json({ error: `No se puede eliminar: ${uso[0].total} herramienta(s) usan este tipo` });
+        }
+        const [result] = await pool.query('DELETE FROM tipo_herramienta WHERE IdTipoHerramienta = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Tipo no encontrado' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Tipo eliminado' });
+    } catch (error) {
+        console.error('Error al eliminar tipo de herramienta:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/*---------------------------------------------------MATERIALES---------------------------------------------------*/
+app.get('/materialesSelect', async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT m.IdMateriales, m.Material, m.Descripcion, m.Largo, m.Ancho,
+                    m.Cant, m.StockMinimo, m.TipoMaterialId, tm.TipoMaterial,
+                    m.SubtipoMaterialId, sm.SubtipoMaterial
+             FROM materiales m
+             LEFT JOIN tipo_materiales tm ON tm.IdTipoMaterial = m.TipoMaterialId
+             LEFT JOIN subtipo_material sm ON sm.IdSubtipoMaterial = m.SubtipoMaterialId
+             ORDER BY m.Material`
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener materiales:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/materialesInsert', async (req, res) => {
+    try {
+        const { Material, Descripcion, Largo, Ancho, Cant, StockMinimo, TipoMaterialId, SubtipoMaterialId, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!Material || !String(Material).trim()) {
+            return res.status(400).json({ error: 'Material es requerido' });
+        }
+        if (!TipoMaterialId) {
+            return res.status(400).json({ error: 'TipoMaterialId es requerido' });
+        }
+        const cantidad = parseInt(Cant, 10);
+        const minimo = parseInt(StockMinimo, 10);
+        if (isNaN(cantidad) || cantidad < 0 || isNaN(minimo) || minimo < 0) {
+            return res.status(400).json({ error: 'Cant y StockMinimo deben ser números >= 0' });
+        }
+        let subtipoId = null;
+        if (SubtipoMaterialId !== undefined && SubtipoMaterialId !== null && SubtipoMaterialId !== '') {
+            const [sub] = await pool.query(
+                'SELECT IdSubtipoMaterial FROM subtipo_material WHERE IdSubtipoMaterial = ? AND TipoMaterialId = ?',
+                [SubtipoMaterialId, TipoMaterialId]
+            );
+            if (sub.length === 0) {
+                return res.status(400).json({ error: 'El subtipo no pertenece al tipo seleccionado' });
+            }
+            subtipoId = SubtipoMaterialId;
+        }
+        const [result] = await pool.query(
+            `INSERT INTO materiales (Material, Descripcion, Largo, Ancho, Cant, StockMinimo, TipoMaterialId, SubtipoMaterialId)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [String(Material).trim(), Descripcion || null, Largo || null, Ancho || null, cantidad, minimo, TipoMaterialId, subtipoId]
+        );
+        io.emit('inventarioActualizado');
+        res.status(201).json({ message: 'Material creado', id: result.insertId });
+    } catch (error) {
+        console.error('Error al crear material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.put('/materialesUpdate/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { Material, Descripcion, Largo, Ancho, StockMinimo, TipoMaterialId, SubtipoMaterialId, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (SubtipoMaterialId !== undefined && SubtipoMaterialId !== null && SubtipoMaterialId !== '') {
+            const tipoRef = TipoMaterialId !== undefined && TipoMaterialId !== ''
+                ? TipoMaterialId
+                : (await pool.query('SELECT TipoMaterialId FROM materiales WHERE IdMateriales = ?', [id]))[0][0]?.TipoMaterialId;
+            const [sub] = await pool.query(
+                'SELECT IdSubtipoMaterial FROM subtipo_material WHERE IdSubtipoMaterial = ? AND TipoMaterialId = ?',
+                [SubtipoMaterialId, tipoRef]
+            );
+            if (sub.length === 0) {
+                return res.status(400).json({ error: 'El subtipo no pertenece al tipo seleccionado' });
+            }
+        }
+        // Nota: Cant NO se edita aquí; solo vía movimientos (entradas/salidas)
+        const updates = [];
+        const values = [];
+        if (Material !== undefined) { updates.push('Material = ?'); values.push(String(Material).trim()); }
+        if (Descripcion !== undefined) { updates.push('Descripcion = ?'); values.push(Descripcion || null); }
+        if (Largo !== undefined) { updates.push('Largo = ?'); values.push(Largo || null); }
+        if (Ancho !== undefined) { updates.push('Ancho = ?'); values.push(Ancho || null); }
+        if (StockMinimo !== undefined) {
+            const minimo = parseInt(StockMinimo, 10);
+            if (isNaN(minimo) || minimo < 0) {
+                return res.status(400).json({ error: 'StockMinimo debe ser número >= 0' });
+            }
+            updates.push('StockMinimo = ?'); values.push(minimo);
+        }
+        if (TipoMaterialId !== undefined && TipoMaterialId !== '') { updates.push('TipoMaterialId = ?'); values.push(TipoMaterialId); }
+        if (SubtipoMaterialId !== undefined) {
+            updates.push('SubtipoMaterialId = ?');
+            values.push(SubtipoMaterialId === '' || SubtipoMaterialId === null ? null : SubtipoMaterialId);
+        }
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No hay campos para actualizar' });
+        }
+        values.push(id);
+        const [result] = await pool.query(`UPDATE materiales SET ${updates.join(', ')} WHERE IdMateriales = ?`, values);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Material no encontrado' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Material actualizado' });
+    } catch (error) {
+        console.error('Error al actualizar material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/materialesDelete/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { UsuarioId } = req.body || {};
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        const [uso] = await pool.query(
+            "SELECT COUNT(*) AS total FROM inventario_movimientos WHERE TipoItem = 'material' AND ReferenciaId = ?",
+            [id]
+        );
+        if (uso[0].total > 0) {
+            return res.status(400).json({ error: 'No se puede eliminar: tiene movimientos registrados' });
+        }
+        const [result] = await pool.query('DELETE FROM materiales WHERE IdMateriales = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Material no encontrado' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Material eliminado' });
+    } catch (error) {
+        console.error('Error al eliminar material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/*---------------------------------------------------HERRAMIENTAS---------------------------------------------------*/
+app.get('/herramientasSelect', async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT h.IdHerramienta, h.Herramienta, h.TipoHerramientaId, th.TipoHerramienta,
+                    h.Cant, h.Size, h.MaterialHerramienta
+             FROM herramientas h
+             LEFT JOIN tipo_herramienta th ON th.IdTipoHerramienta = h.TipoHerramientaId
+             ORDER BY h.Herramienta`
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener herramientas:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/herramientasInsert', async (req, res) => {
+    try {
+        const { Herramienta, TipoHerramientaId, Cant, Size, MaterialHerramienta, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!Herramienta || !String(Herramienta).trim()) {
+            return res.status(400).json({ error: 'Herramienta es requerida' });
+        }
+        if (!TipoHerramientaId) {
+            return res.status(400).json({ error: 'TipoHerramientaId es requerido' });
+        }
+        const cantidad = Cant === undefined || Cant === null || Cant === '' ? 0 : parseInt(Cant, 10);
+        if (isNaN(cantidad) || cantidad < 0) {
+            return res.status(400).json({ error: 'Cant debe ser número >= 0' });
+        }
+        const [result] = await pool.query(
+            `INSERT INTO herramientas (Herramienta, TipoHerramientaId, Cant, Size, MaterialHerramienta)
+             VALUES (?, ?, ?, ?, ?)`,
+            [String(Herramienta).trim(), TipoHerramientaId, cantidad, Size || null, MaterialHerramienta || null]
+        );
+        io.emit('inventarioActualizado');
+        res.status(201).json({ message: 'Herramienta creada', id: result.insertId });
+    } catch (error) {
+        console.error('Error al crear herramienta:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.put('/herramientasUpdate/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { Herramienta, TipoHerramientaId, Size, MaterialHerramienta, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        // Nota: Cant NO se edita aquí; solo vía movimientos (entradas/salidas)
+        const updates = [];
+        const values = [];
+        if (Herramienta !== undefined) { updates.push('Herramienta = ?'); values.push(String(Herramienta).trim()); }
+        if (TipoHerramientaId !== undefined && TipoHerramientaId !== '') { updates.push('TipoHerramientaId = ?'); values.push(TipoHerramientaId); }
+        if (Size !== undefined) { updates.push('Size = ?'); values.push(Size || null); }
+        if (MaterialHerramienta !== undefined) { updates.push('MaterialHerramienta = ?'); values.push(MaterialHerramienta || null); }
+        if (updates.length === 0) {
+            return res.status(400).json({ error: 'No hay campos para actualizar' });
+        }
+        values.push(id);
+        const [result] = await pool.query(`UPDATE herramientas SET ${updates.join(', ')} WHERE IdHerramienta = ?`, values);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Herramienta no encontrada' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Herramienta actualizada' });
+    } catch (error) {
+        console.error('Error al actualizar herramienta:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/herramientasDelete/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { UsuarioId } = req.body || {};
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        const [uso] = await pool.query(
+            "SELECT COUNT(*) AS total FROM inventario_movimientos WHERE TipoItem = 'herramienta' AND ReferenciaId = ?",
+            [id]
+        );
+        if (uso[0].total > 0) {
+            return res.status(400).json({ error: 'No se puede eliminar: tiene movimientos registrados' });
+        }
+        const [result] = await pool.query('DELETE FROM herramientas WHERE IdHerramienta = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Herramienta no encontrada' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Herramienta eliminada' });
+    } catch (error) {
+        console.error('Error al eliminar herramienta:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/*---------------------------------------------------MOVIMIENTOS (entradas/salidas)---------------------------------------------------*/
+app.post('/inventarioMovimiento', async (req, res) => {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+        const { TipoItem, ReferenciaId, TipoMov, Cantidad, UsuarioId, Comentario } = req.body;
+
+        if (!(await checkAdminInventario(UsuarioId))) {
+            await connection.rollback();
+            connection.release();
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!['material', 'herramienta'].includes(TipoItem)) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: "TipoItem debe ser 'material' o 'herramienta'" });
+        }
+        if (!['entrada', 'salida'].includes(TipoMov)) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: "TipoMov debe ser 'entrada' o 'salida'" });
+        }
+        const cantidad = parseInt(Cantidad, 10);
+        if (isNaN(cantidad) || cantidad <= 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'Cantidad debe ser un número mayor a 0' });
+        }
+
+        const tabla = TipoItem === 'material' ? 'materiales' : 'herramientas';
+        const idCol = TipoItem === 'material' ? 'IdMateriales' : 'IdHerramienta';
+        const [actual] = await connection.query(
+            `SELECT Cant FROM ${tabla} WHERE ${idCol} = ?`,
+            [ReferenciaId]
+        );
+        if (actual.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ error: 'Artículo no encontrado' });
+        }
+        const existencia = Number(actual[0].Cant) || 0;
+        if (TipoMov === 'salida' && existencia < cantidad) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: `Stock insuficiente. Existencia: ${existencia}` });
+        }
+
+        const nuevaCant = TipoMov === 'entrada' ? existencia + cantidad : existencia - cantidad;
+        await connection.query(
+            `UPDATE ${tabla} SET Cant = ? WHERE ${idCol} = ?`,
+            [nuevaCant, ReferenciaId]
+        );
+        await connection.query(
+            `INSERT INTO inventario_movimientos (TipoItem, ReferenciaId, TipoMov, Cantidad, Fecha, UsuarioId, Comentario)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [TipoItem, ReferenciaId, TipoMov, cantidad, getHermosilloDateTime(), UsuarioId, Comentario || null]
+        );
+
+        await connection.commit();
+        connection.release();
+
+        io.emit('inventarioActualizado');
+
+        res.status(201).json({ success: true, message: 'Movimiento registrado', nuevaExistencia: nuevaCant });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error al registrar movimiento:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.get('/inventarioMovimientos', async (req, res) => {
+    try {
+        const { tipoItem, referenciaId, limite } = req.query;
+        let query = `
+            SELECT m.IdMovimiento, m.TipoItem, m.ReferenciaId, m.TipoMov, m.Cantidad,
+                   m.Fecha, DATE_FORMAT(m.Fecha, '%d/%m/%Y %H:%i') AS FechaFormateada,
+                   m.UsuarioId, m.Comentario, u.Nombre AS UsuarioNombre
+            FROM inventario_movimientos m
+            LEFT JOIN usuarios u ON u.NoEmpleado = m.UsuarioId
+            WHERE 1=1
+        `;
+        const params = [];
+        if (tipoItem && ['material', 'herramienta'].includes(tipoItem)) {
+            query += ' AND m.TipoItem = ?';
+            params.push(tipoItem);
+        }
+        if (referenciaId) {
+            query += ' AND m.ReferenciaId = ?';
+            params.push(referenciaId);
+        }
+        query += ' ORDER BY m.Fecha DESC, m.IdMovimiento DESC';
+        const lim = parseInt(limite, 10);
+        if (!isNaN(lim) && lim > 0 && lim <= 500) {
+            // lim ya validado como entero 1..500: interpolar directo (placeholders no aplican a LIMIT)
+            query += ` LIMIT ${lim}`;
+        }
+        const [rows] = await pool.query(query, params);
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener movimientos:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/*---------------------------------------------------SUBTIPOS DE MATERIAL---------------------------------------------------*/
+app.get('/subtiposMaterialSelect', async (req, res) => {
+    try {
+        const { tipoId } = req.query;
+        let query = 'SELECT IdSubtipoMaterial, TipoMaterialId, SubtipoMaterial FROM subtipo_material';
+        const params = [];
+        if (tipoId) {
+            query += ' WHERE TipoMaterialId = ?';
+            params.push(tipoId);
+        }
+        query += ' ORDER BY SubtipoMaterial';
+        const [rows] = await pool.query(query, params);
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener subtipos de material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/subtiposMaterialInsert', async (req, res) => {
+    try {
+        const { TipoMaterialId, SubtipoMaterial, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!TipoMaterialId) {
+            return res.status(400).json({ error: 'TipoMaterialId es requerido' });
+        }
+        if (!SubtipoMaterial || !String(SubtipoMaterial).trim()) {
+            return res.status(400).json({ error: 'SubtipoMaterial es requerido' });
+        }
+        const [result] = await pool.query(
+            'INSERT INTO subtipo_material (TipoMaterialId, SubtipoMaterial) VALUES (?, ?)',
+            [TipoMaterialId, String(SubtipoMaterial).trim()]
+        );
+        io.emit('inventarioActualizado');
+        res.status(201).json({ message: 'Subtipo creado', id: result.insertId });
+    } catch (error) {
+        console.error('Error al crear subtipo de material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/subtiposMaterialDelete/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { UsuarioId } = req.body || {};
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        const [uso] = await pool.query('SELECT COUNT(*) AS total FROM materiales WHERE SubtipoMaterialId = ?', [id]);
+        if (uso[0].total > 0) {
+            return res.status(400).json({ error: `No se puede eliminar: ${uso[0].total} material(es) usan este subtipo` });
+        }
+        const [result] = await pool.query('DELETE FROM subtipo_material WHERE IdSubtipoMaterial = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Subtipo no encontrado' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Subtipo eliminado' });
+    } catch (error) {
+        console.error('Error al eliminar subtipo de material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/*---------------------------------------------------EDITAR TIPOS/SUBTIPOS---------------------------------------------------*/
+app.put('/tiposMaterialUpdate/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { TipoMaterial, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!TipoMaterial || !String(TipoMaterial).trim()) {
+            return res.status(400).json({ error: 'TipoMaterial es requerido' });
+        }
+        const [result] = await pool.query(
+            'UPDATE tipo_materiales SET TipoMaterial = ? WHERE IdTipoMaterial = ?',
+            [String(TipoMaterial).trim(), id]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Tipo no encontrado' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Tipo actualizado' });
+    } catch (error) {
+        console.error('Error al actualizar tipo de material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.put('/tiposHerramientaUpdate/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { TipoHerramienta, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!TipoHerramienta || !String(TipoHerramienta).trim()) {
+            return res.status(400).json({ error: 'TipoHerramienta es requerido' });
+        }
+        const [result] = await pool.query(
+            'UPDATE tipo_herramienta SET TipoHerramienta = ? WHERE IdTipoHerramienta = ?',
+            [String(TipoHerramienta).trim(), id]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Tipo no encontrado' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Tipo actualizado' });
+    } catch (error) {
+        console.error('Error al actualizar tipo de herramienta:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.put('/subtiposMaterialUpdate/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { SubtipoMaterial, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Solo administradores' });
+        }
+        if (!SubtipoMaterial || !String(SubtipoMaterial).trim()) {
+            return res.status(400).json({ error: 'SubtipoMaterial es requerido' });
+        }
+        const [result] = await pool.query(
+            'UPDATE subtipo_material SET SubtipoMaterial = ? WHERE IdSubtipoMaterial = ?',
+            [String(SubtipoMaterial).trim(), id]
+        );
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Subtipo no encontrado' });
+        }
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Subtipo actualizado' });
+    } catch (error) {
+        console.error('Error al actualizar subtipo de material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/*---------------------------------------------------DEMANDA DE BLOCKS (solo lectura, agregada)---------------------------------------------------*/
+app.get('/inventarioDemandaBlocks', async (req, res) => {
+    try {
+        const [rows] = await pool.query(
+            `SELECT td.BloqueId AS NoParte,
+                    SUM(td.Cantidad) AS Requerido,
+                    COUNT(DISTINCT td.TicketId) AS Tickets,
+                    MAX(b.DibujosCompleto) AS DibujosCompleto,
+                    MAX(b.ProgramasCompleto) AS ProgramasCompleto,
+                    MAX(b.EnsambleCompleto) AS EnsambleCompleto
+             FROM tickets_details td
+             JOIN tickets t ON t.IdTicket = td.TicketId
+             LEFT JOIN estados e ON e.IdEstado = t.EstadoId
+             LEFT JOIN bloques b ON b.NoParte = td.BloqueId
+             WHERE t.Activo = 1
+               AND (e.NombreEstado IS NULL OR e.NombreEstado NOT IN ('COMPLETO', 'ENTREGADO'))
+             GROUP BY td.BloqueId
+             ORDER BY Requerido DESC`
+        );
+        res.json(rows.map(r => ({
+            ...r,
+            Requerido: Number(r.Requerido),
+            Tickets: Number(r.Tickets)
+        })));
+    } catch (error) {
+        console.error('Error al obtener demanda de blocks:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });

@@ -15,6 +15,7 @@ import {
     FiChevronLeft, FiChevronRight, FiTrash2, FiEdit2, FiEye,
     FiFilter, FiX, FiSearch, FiRefreshCw, FiDelete, FiArchive
 } from "react-icons/fi";
+import { MdModeEdit } from "react-icons/md";
 import { showToast } from 'nextjs-toast-notify';
 import Swal from "sweetalert2";
 
@@ -73,6 +74,12 @@ export const TicketsPage = () => {
             estado?.NombreEstado?.toUpperCase() === 'ENTREGADO';
     };
 
+    // Verificar si un estado es "ENTREGADO" (pestaña bloqueada, solo lectura)
+    const isEntregado = (estadoId) => {
+        const estado = getEstado(estadoId);
+        return estado?.NombreEstado?.toUpperCase() === 'ENTREGADO';
+    };
+
     // ============ HANDLE VIEW PARAMETER FROM NOTIFICATION ============
     const handleViewTicket = useCallback((ticketId) => {
         if (!ticketId) return;
@@ -84,6 +91,8 @@ export const TicketsPage = () => {
         let targetTab = 'active';
         if (ticket.Activo === 0) {
             targetTab = 'papelera';
+        } else if (isEntregado(ticket.EstadoId)) {
+            targetTab = 'entregados';
         } else if (isEstadoCompletado(ticket.EstadoId)) {
             targetTab = 'completados';
         } else {
@@ -98,8 +107,10 @@ export const TicketsPage = () => {
         let filtered = [...tickets];
         if (targetTab === 'papelera') {
             filtered = filtered.filter(t => t.Activo === 0);
+        } else if (targetTab === 'entregados') {
+            filtered = filtered.filter(t => t.Activo === 1 && isEntregado(t.EstadoId));
         } else if (targetTab === 'completados') {
-            filtered = filtered.filter(t => t.Activo === 1 && isEstadoCompletado(t.EstadoId));
+            filtered = filtered.filter(t => t.Activo === 1 && isEstadoCompletado(t.EstadoId) && !isEntregado(t.EstadoId));
         } else {
             filtered = filtered.filter(t => t.Activo === 1 && !isEstadoCompletado(t.EstadoId));
         }
@@ -428,8 +439,10 @@ export const TicketsPage = () => {
         // ✅ Filtrar por pestaña activa
         if (activeTab === 'papelera') {
             result = result.filter(t => t.Activo === 0);
+        } else if (activeTab === 'entregados') {
+            result = result.filter(t => t.Activo === 1 && isEntregado(t.EstadoId));
         } else if (activeTab === 'completados') {
-            result = result.filter(t => t.Activo === 1 && isEstadoCompletado(t.EstadoId));
+            result = result.filter(t => t.Activo === 1 && isEstadoCompletado(t.EstadoId) && !isEntregado(t.EstadoId));
         } else { // active
             result = result.filter(t => t.Activo === 1 && !isEstadoCompletado(t.EstadoId));
         }
@@ -485,6 +498,13 @@ export const TicketsPage = () => {
     };
 
     const handleEditTicket = (ticket) => {
+        if (isEntregado(ticket.EstadoId)) {
+            showToast.warning('Un ticket ENTREGADO ya no se puede editar', {
+                duration: 3000,
+                position: "top-right",
+            });
+            return;
+        }
         if (ticket.PrioridadNombre === 'CRITICA' && !isEstadoCompletado(ticket.EstadoId)) {
             showToast.warning('No se puede editar un ticket crítico en curso', {
                 duration: 3000,
@@ -549,6 +569,13 @@ export const TicketsPage = () => {
     };
 
     const handleDeleteTicket = async (ticket) => {
+        if (isEntregado(ticket.EstadoId)) {
+            showToast.warning('Un ticket ENTREGADO no se puede mover a papelera', {
+                duration: 3000,
+                position: "top-right",
+            });
+            return;
+        }
         try {
             const result = await Swal.fire({
                 title: '¿Mover a papelera?',
@@ -707,7 +734,10 @@ export const TicketsPage = () => {
         t.Activo === 1 && !estadoCompletadoIds.includes(t.EstadoId)
     ).length;
     const completedCount = tickets.filter(t =>
-        estadoCompletadoIds.includes(t.EstadoId)
+        t.Activo === 1 && estadoCompletadoIds.includes(t.EstadoId) && !isEntregado(t.EstadoId)
+    ).length;
+    const entregadosCount = tickets.filter(t =>
+        t.Activo === 1 && isEntregado(t.EstadoId)
     ).length;
 
     return (
@@ -739,6 +769,10 @@ export const TicketsPage = () => {
                         <div className="stat-item">
                             <span className="stat-number">{completedCount}</span>
                             <span className="stat-label">Completados</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-number">{entregadosCount}</span>
+                            <span className="stat-label">Entregados</span>
                         </div>
                     </div>
                     {activeTab === 'active' && (
@@ -845,7 +879,17 @@ export const TicketsPage = () => {
                         <FiCheckCircle />
                         Completados
                         <span className="tab-badge">
-                            {tickets.filter(t => estadoCompletadoIds.includes(t.EstadoId)).length}
+                            {tickets.filter(t => t.Activo === 1 && estadoCompletadoIds.includes(t.EstadoId) && !isEntregado(t.EstadoId)).length}
+                        </span>
+                    </button>
+                    <button
+                        className={`tab-btn ${activeTab === 'entregados' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('entregados')}
+                    >
+                        <FiPackage />
+                        Entregados
+                        <span className="tab-badge">
+                            {tickets.filter(t => t.Activo === 1 && isEntregado(t.EstadoId)).length}
                         </span>
                     </button>
                     <button
@@ -869,6 +913,12 @@ export const TicketsPage = () => {
                                     <FiArchive size={48} />
                                     <h3>Papelera vacía</h3>
                                     <p>No hay tickets en la papelera</p>
+                                </>
+                            ) : activeTab === 'entregados' ? (
+                                <>
+                                    <FiPackage size={48} />
+                                    <h3>Sin entregados</h3>
+                                    <p>Aún no hay tickets entregados</p>
                                 </>
                             ) : (
                                 <>
@@ -1111,11 +1161,11 @@ export const TicketsPage = () => {
                                                         {!isEstadoCompletado(ticket.EstadoId) && (
                                                             <>
                                                                 <button
-                                                                    className="action-btn edit-btn"
+                                                                    className="action-btn view-btn"
                                                                     onClick={() => handleEditTicket(ticket)}
                                                                     title="Editar ticket"
                                                                 >
-                                                                    <FiEdit2 />
+                                                                    <FiEdit2/>
                                                                 </button>
                                                                 {isAdmin && (
                                                                     <button
@@ -1128,13 +1178,16 @@ export const TicketsPage = () => {
                                                                 )}
                                                             </>
                                                         )}
-                                                        <button
-                                                            className="action-btn delete-btn"
-                                                            onClick={() => handleDeleteTicket(ticket)}
-                                                            title="Mover a papelera"
-                                                        >
-                                                            <FiTrash2 />
-                                                        </button>
+                                                        {/* 🔒 ENTREGADO: solo lectura (ver + historial), sin papelera */}
+                                                        {!isEntregado(ticket.EstadoId) && (
+                                                            <button
+                                                                className="action-btn delete-btn"
+                                                                onClick={() => handleDeleteTicket(ticket)}
+                                                                title="Mover a papelera"
+                                                            >
+                                                                <FiTrash2 />
+                                                            </button>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>

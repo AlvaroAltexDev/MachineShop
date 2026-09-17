@@ -71,12 +71,12 @@ const Navbar = () => {
         navigate("/");
     };
 
-    const isStandar = Number(user?.empRol) === 2;
+    const isAdmin = Number(user?.rolId) === 1;
 
     const mainMenuItems = [
-        { to: "/metrics", label: "Metrics", icon: <FaChartSimple /> },
+        ...(isAdmin ? [{ to: "/metrics", label: "Metrics", icon: <FaChartSimple /> }] : []),
         { to: "/tickets", label: "Tickets", icon: <LuTickets /> },
-        { to: "/blocks", label: "Blocks", icon: <LuBlocks /> },
+        { to: "/blocks", label: "Connectors", icon: <LuBlocks /> },
     ];
 
     const formatTime = (timestamp) => {

@@ -289,7 +289,8 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
 
                 {/* COLUMNA DERECHA - IMAGEN */}
                 <div className="form-column">
-                    {/* ✅ Conector Fisico - En contenedor gris tipo card */}
+                    {/* ✅ Conector Fisico - Solo visible para admin */}
+                    {isAdmin && (
                     <div className="form-group conector-fisico-card">
                         <div className="conector-fisico-header">
                             <span className="conector-fisico-title">
@@ -333,6 +334,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                             )}
                         </div>
                     </div>
+                    )}
                     <label className="form-label">Block Image</label>
 
                     <div

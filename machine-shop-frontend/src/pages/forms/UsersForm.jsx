@@ -6,6 +6,7 @@ import { showToast } from 'nextjs-toast-notify';
 export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [rol, setRol] = useState([]);
+  const [areas, setAreas] = useState([]);
 
   const [formData, setFormData] = useState({
     NoEmpleado: '',
@@ -13,6 +14,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
     Contraseña: '',
     Correo: '',
     RolId: '',
+    AreaId: '',
   });
 
   useEffect(() => {
@@ -23,6 +25,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
         Contraseña: '',
         Correo: usuario.Correo || '',
         RolId: String(usuario.RolId || ''),
+        AreaId: String(usuario.AreaId || ''),
       });
     }
   }, [isEditing, usuario]);
@@ -30,10 +33,12 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [rolRes] = await Promise.all([
-          api.get("/rolesSelectAll")
+        const [rolRes, areasRes] = await Promise.all([
+          api.get("/rolesSelectAll"),
+          api.get("/areasSelectAll")
         ]);
         setRol(rolRes.data);
+        setAreas(areasRes.data || []);
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -44,6 +49,11 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
   const rolesOptions = rol.map(r => ({
     value: String(r.IdRol),
     label: r.Rol
+  }));
+
+  const areasOptions = areas.map(a => ({
+    value: String(a.IdArea),
+    label: a.NombreArea
   }));
 
   const handleChange = (e) => {
@@ -85,6 +95,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
           Contraseña: '',
           Correo: '',
           RolId: '',
+          AreaId: '',
         });
       }
 
@@ -174,6 +185,22 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
               }}
               classNamePrefix="react-select"
               placeholder="Select a role"
+              isClearable
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Área</label>
+            <Select
+              options={areasOptions}
+              value={areasOptions.find(o => o.value === formData.AreaId)}
+              onChange={(selected) => {
+                setFormData(prev => ({
+                  ...prev,
+                  AreaId: selected ? selected.value : ''
+                }))
+              }}
+              classNamePrefix="react-select"
+              placeholder="Seleccione un área"
               isClearable
             />
           </div>

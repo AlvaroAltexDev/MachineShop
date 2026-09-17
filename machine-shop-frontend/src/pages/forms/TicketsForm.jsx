@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import api from '../../api/api';
 import { AuthContext } from '../../context/AuthProvider';
 import { showToast } from 'nextjs-toast-notify';
@@ -31,6 +31,22 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
             { BloqueId: '', Cantidad: 1 }
         ]
     });
+
+    // 👈 Estado de completitud por bloque seleccionado (D/P/E compacto)
+    const [blockStatusMap, setBlockStatusMap] = useState({});
+    const fetchedStatusRef = useRef(new Set());
+    const toBoolFlag = (v) => v === true || v === 1 || v === '1';
+
+    useEffect(() => {
+        formData.Detalles.forEach(d => {
+            const id = d.BloqueId;
+            if (!id || fetchedStatusRef.current.has(id)) return;
+            fetchedStatusRef.current.add(id);
+            api.get(`/bloquesGetStatus/${id}`)
+                .then(r => setBlockStatusMap(prev => ({ ...prev, [id]: r.data })))
+                .catch(() => { });
+        });
+    }, [formData.Detalles]);
 
     // Cargar bloques para el select
     const fetchBlocks = async () => {
@@ -402,7 +418,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
 
     return (
         <>
-            <form className="form-container" onSubmit={handleSubmit}>
+            <form className="form-container tickets-form" onSubmit={handleSubmit}>
                 {/* Título de la sección */}
                 <h3 className="form-section-title">
                     <FiFileText />
@@ -423,9 +439,6 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                                 className="form-input"
                                 disabled
                             />
-                            <small className="form-hint">
-                                Área: {user?.AreaNombre || 'No asignada'}
-                            </small>
                         </div>
 
                         <div className="form-group">
@@ -548,6 +561,25 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                                                         <FiPlusCircle size={20} />
                                                     </button>
                                                 </div>
+                                                {detalle.BloqueId && blockStatusMap[detalle.BloqueId] && (
+                                                    <div className="block-mini-status">
+                                                        <span
+                                                            className={`mini-dot mini-drawings ${toBoolFlag(blockStatusMap[detalle.BloqueId]?.DibujosCompleto) ? 'on' : ''}`}
+                                                            title="Dibujos completos"
+                                                        />
+                                                        <span className="mini-label">D</span>
+                                                        <span
+                                                            className={`mini-dot mini-programs ${toBoolFlag(blockStatusMap[detalle.BloqueId]?.ProgramasCompleto) ? 'on' : ''}`}
+                                                            title="Programas completos"
+                                                        />
+                                                        <span className="mini-label">P</span>
+                                                        <span
+                                                            className={`mini-dot mini-ensamble ${toBoolFlag(blockStatusMap[detalle.BloqueId]?.EnsambleCompleto) ? 'on' : ''}`}
+                                                            title="Ensamble completo"
+                                                        />
+                                                        <span className="mini-label">E</span>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="form-group">
                                                 <label>Cantidad *</label>

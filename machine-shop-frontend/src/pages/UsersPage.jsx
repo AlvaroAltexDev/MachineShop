@@ -147,6 +147,7 @@ export const UsersPage = () => {
                 <option value="EmpNumber">Employee Number</option>
                 <option value="UserName">Name</option>
                 <option value="Rol">Role</option>
+                <option value="NombreArea">Area</option>
               </select>
 
               {filterType && (
@@ -164,7 +165,7 @@ export const UsersPage = () => {
         </div>
 
         {/* TABLA */}
-        <div className="Table">
+        <div className="Table users-table">
           <div className="table-scroll">
             <table>
               <thead>
@@ -173,6 +174,7 @@ export const UsersPage = () => {
                   <th>Nombre</th>
                   <th>Correo</th>
                   <th>Role</th>
+                  <th>Área</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -184,6 +186,7 @@ export const UsersPage = () => {
                     <td>{u.Nombre}</td>
                     <td>{u.Correo}</td>
                     <td>{u.Rol}</td>
+                    <td>{u.NombreArea || 'Sin área'}</td>
                     <td>
                       <button className="icon-button" onClick={() => handleEdit(u)}>
                         <MdModeEditOutline />

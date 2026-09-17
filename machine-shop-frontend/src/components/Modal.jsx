@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { MdClose } from "react-icons/md";
 
-export const Modal = ({ isOpen, onClose, children, title, darkMode = false }) => {
+export const Modal = ({ isOpen, onClose, children, title, darkMode = false, className = '' }) => {
   useEffect(() => {
     const page = document.querySelector(".page-container");
 
@@ -25,7 +25,7 @@ export const Modal = ({ isOpen, onClose, children, title, darkMode = false }) =>
     <div className="modal-overlay" onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}>
-      <div className={`modal-content ${darkMode ? 'modal-content-dark' : ''}`}>
+      <div className={`modal-content ${darkMode ? 'modal-content-dark' : ''} ${className}`}>
         <div className="modal-header">
           <h2 className="modal-title">{title}</h2>
           <button

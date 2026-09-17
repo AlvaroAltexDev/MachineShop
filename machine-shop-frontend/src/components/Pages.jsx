@@ -9,6 +9,8 @@ import { BlocksPage } from '../pages/BlocksPage'
 import { MetricsPage } from '../pages/MetricsPage'
 import { BlocksDetails } from '../pages/details/BlocksDetails'
 import { TicketHistoryPage } from '../pages/TicketHistoryPage'
+import { InventarioPage } from '../pages/InventarioPage'
+import { Unauthorized } from '../pages/Unauthorized'
 import { Login } from '../pages/Login'
 import { NotificationsHistoryPage } from '../pages/NotificationsHistoryPage'
 
@@ -18,11 +20,13 @@ export const Pages = () => {
     return (
         <Routes>
             <Route path="/" element={<Login />} />
+            <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/Home" element={<Home />} />
             <Route path="/metrics" element={<ProtectedRoutes roles={[1, 2]}><MetricsPage /></ProtectedRoutes>} />
             <Route path="/users" element={<ProtectedRoutes roles={[1]}><UsersPage /></ProtectedRoutes>} />
             <Route path='/tickets' element={<ProtectedRoutes roles={[1, 2]}><TicketsPage /></ProtectedRoutes>} />
             <Route path='/tickets/:id/historial' element={<ProtectedRoutes roles={[1, 2]}><TicketHistoryPage /></ProtectedRoutes>} />
+            <Route path='/inventario' element={<ProtectedRoutes roles={[1]}><InventarioPage /></ProtectedRoutes>} />
             <Route path='/blocks' element={<ProtectedRoutes roles={[1, 2]}><BlocksPage /></ProtectedRoutes>} />
             <Route path='/blocksdetails' element={<ProtectedRoutes roles={[1]}><BlocksDetails /></ProtectedRoutes>} />
             <Route path='/notifications' element={<ProtectedRoutes roles={[1, 2]}><NotificationsHistoryPage /></ProtectedRoutes>} />
