@@ -50,7 +50,7 @@ const fileFilter = (req, file, cb) => {
     if (allowedTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        cb(new Error('Solo se permiten imágenes'), false);
+        cb(new Error('Only images are allowed'), false);
     }
 };
 
@@ -159,16 +159,16 @@ app.post('/login', async (req, res) => {
     const { NoEmpleado, Contraseña } = req.body;
     if (!NoEmpleado || !Contraseña) {
         return res.status(400).json({
-            message: 'Ingrese usuario y contraseña'
+            message: 'Enter username and password'
         });
     }
     try {
         const [rows] = await pool.query(
             `SELECT * FROM usuarios WHERE NoEmpleado = ?`, [NoEmpleado]);
         const user = rows[0];
-        if (!user) { return res.status(401).json({ error: 'Credenciales incorrectas' }); }
+        if (!user) { return res.status(401).json({ error: 'Invalid credentials' }); }
         const match = await bcrypt.compare(Contraseña, user.Contraseña);
-        if (!match) { return res.status(401).json({ error: 'Credenciales incorrectas' }); }
+        if (!match) { return res.status(401).json({ error: 'Invalid credentials' }); }
         const payload = {
             NoEmpleado: user.NoEmpleado,
             Nombre: user.Nombre,
@@ -180,7 +180,7 @@ app.post('/login', async (req, res) => {
             expiresIn: '8h'
         });
         res.json({
-            message: 'Login exitoso',
+            message: 'Login successful',
             token,
             usuario: {
                 noEmp: user.NoEmpleado,
@@ -193,7 +193,7 @@ app.post('/login', async (req, res) => {
     } catch (error) {
         console.error('Error en login:', error);
         res.status(500).json({
-            error: 'Error interno del servidor'
+            error: 'Internal server error'
         });
     }
 });
@@ -211,7 +211,7 @@ app.post('/usuariosInsert', async (req, res) => {
 
         io.emit('usuariosActualizados');
 
-        res.status(201).json({ message: 'Usuario creado', id: result.insertId });
+        res.status(201).json({ message: 'User created', id: result.insertId });
     } catch (error) {
         console.error('Error al insertar usuario:', error);
         res.status(500).json({ error: 'Server error' });
@@ -224,7 +224,7 @@ app.post('/bloquesInsert', upload.single('Imagen'), async (req, res) => {
         const Imagen = req.file ? req.file.filename : null;
 
         if (!NoParte) {
-            return res.status(400).json({ error: 'NoParte es requerido' });
+            return res.status(400).json({ error: 'NoParte is required' });
         }
 
         // Si no se envía FechaAlta, usar la fecha/hora actual en Hermosillo
@@ -240,15 +240,15 @@ app.post('/bloquesInsert', upload.single('Imagen'), async (req, res) => {
         io.emit('bloquesActualizados');
         const notifBlockCreated = {
             type: 'block_created',
-            title: 'Nuevo Block Creado',
-            message: `Block ${NoParte} creado`,
+            title: 'New Block Created',
+            message: `Block ${NoParte} created`,
             noParte: NoParte,
             timestamp: getHermosilloDateTime()
         };
         io.emit('notification', notifBlockCreated);
         saveNotification({ ...notifBlockCreated, referenciaTipo: 'bloque', referenciaId: NoParte, emisorId: Creador, targetUserId: Creador });
         res.status(201).json({
-            message: 'Bloque creado',
+            message: 'Block created',
             id: result.insertId,
             imagen: Imagen
         });
@@ -265,7 +265,7 @@ app.post('/dibujosInsert', uploadDibujo.single('RutaDibujo'), async (req, res) =
         // Validar campos requeridos
         if (!BloqueId || !TipoDibujoId || !UsuarioId) {
             return res.status(400).json({
-                error: 'Faltan campos requeridos: BloqueId, TipoDibujoId, UsuarioId'
+                error: 'Missing required fields: BloqueId, TipoDibujoId, UsuarioId'
             });
         }
 
@@ -284,7 +284,7 @@ app.post('/dibujosInsert', uploadDibujo.single('RutaDibujo'), async (req, res) =
         // Si no hay archivo y no hay URL, error
         if (!rutaDibujo) {
             return res.status(400).json({
-                error: 'Debe proporcionar un archivo o una URL'
+                error: 'You must provide a file or a URL'
             });
         }
 
@@ -298,9 +298,21 @@ app.post('/dibujosInsert', uploadDibujo.single('RutaDibujo'), async (req, res) =
 
         // Emitir evento para actualizar la interfaz
         io.emit('dibujosActualizados');
+        const dibujoDuenosNuevo = await getBlockUserIds(BloqueId);
+        const notifDrawingCreated = {
+            type: 'drawing_created',
+            title: 'Drawing Added',
+            message: `Drawing ${nombreDibujo || ''} added to block ${BloqueId}`,
+            dibujoId: result.insertId,
+            bloqueId: BloqueId,
+            userIds: dibujoDuenosNuevo,
+            timestamp: getHermosilloDateTime()
+        };
+        io.emit('notification', notifDrawingCreated);
+        saveNotification({ ...notifDrawingCreated, referenciaTipo: 'dibujo', referenciaId: result.insertId, emisorId: UsuarioId, targetUserId: UsuarioId });
 
         res.status(201).json({
-            message: 'Dibujo creado correctamente',
+            message: 'Drawing created successfully',
             id: result.insertId,
             rutaDibujo: rutaDibujo,
             fechaSubida: fechaSubida
@@ -309,7 +321,7 @@ app.post('/dibujosInsert', uploadDibujo.single('RutaDibujo'), async (req, res) =
     } catch (error) {
         console.error('Error al insertar dibujo:', error);
         res.status(500).json({
-            error: 'Error al guardar el dibujo en la base de datos',
+            error: 'Error saving drawing to database',
             details: error.message
         });
     }
@@ -326,7 +338,7 @@ app.post('/programasInsert', uploadPrograma.single('RutaPrograma'), async (req, 
 
         if (!DibujoId || !UsuarioId) {
             return res.status(400).json({
-                error: 'Faltan campos requeridos: DibujoId, UsuarioId'
+                error: 'Missing required fields: DibujoId, UsuarioId'
             });
         }
 
@@ -340,19 +352,24 @@ app.post('/programasInsert', uploadPrograma.single('RutaPrograma'), async (req, 
         // Validar archivo
         if (!rutaPrograma) {
             return res.status(400).json({
-                error: 'Debe proporcionar un archivo'
+                error: 'You must provide a file'
             });
         }
 
         console.log('📁 Archivo original:', nombrePrograma);
         console.log('📁 Archivo guardado:', rutaPrograma);
 
+        // Bloque dueño (para recetas, consumo y demanda: sin esto el programa queda huérfano)
+        const [dibRow] = await pool.query('SELECT BloqueId FROM dibujos_bloques WHERE IdDibujo = ?', [DibujoId]);
+        const bloqueDueno = dibRow.length > 0 ? dibRow[0].BloqueId : null;
+
         // Insertar programa
         const [result] = await pool.query(
-            `INSERT INTO programas 
-            (DibujoId, NumeroOperacion, NombrePrograma, RutaPrograma, FechaSubida, SubidoPor) 
-            VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO programas
+            (BloqueId, DibujoId, NumeroOperacion, NombrePrograma, RutaPrograma, FechaSubida, SubidoPor)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
+                bloqueDueno,
                 DibujoId,
                 NumeroOperacion || null,
                 nombrePrograma,
@@ -365,9 +382,22 @@ app.post('/programasInsert', uploadPrograma.single('RutaPrograma'), async (req, 
         //console.log('✅ Programa insertado:', result);
 
         io.emit('programasActualizados');
+        const bloqueDelProgNuevo = await getDibujoBloque(DibujoId);
+        const progDuenosNuevo = await getBlockUserIds(bloqueDelProgNuevo);
+        const notifProgramCreated = {
+            type: 'program_created',
+            title: 'Program Added',
+            message: `Program ${nombrePrograma || ''} added`,
+            programaId: result.insertId,
+            bloqueId: bloqueDelProgNuevo,
+            userIds: progDuenosNuevo,
+            timestamp: getHermosilloDateTime()
+        };
+        io.emit('notification', notifProgramCreated);
+        saveNotification({ ...notifProgramCreated, referenciaTipo: 'programa', referenciaId: result.insertId, emisorId: UsuarioId, targetUserId: UsuarioId });
 
         res.status(201).json({
-            message: 'Programa creado correctamente',
+            message: 'Program created successfully',
             id: result.insertId,
             nombrePrograma: nombrePrograma,
             rutaPrograma: rutaPrograma,
@@ -378,7 +408,7 @@ app.post('/programasInsert', uploadPrograma.single('RutaPrograma'), async (req, 
         console.error('❌ Error al insertar programa:', error);
 
         res.status(500).json({
-            error: 'Error al guardar el programa en la base de datos',
+            error: 'Error saving program to database',
             details: error.message
         });
     }
@@ -395,7 +425,7 @@ app.post('/ensamblesInsert', uploadEnsemble.single('RutaEnsamble'), async (req, 
             await connection.rollback();
             connection.release();
             return res.status(400).json({
-                error: 'Faltan campos requeridos: BloqueId, NombreEnsamble, UsuarioId'
+                error: 'Missing required fields: BloqueId, NombreEnsamble, UsuarioId'
             });
         }
 
@@ -403,7 +433,7 @@ app.post('/ensamblesInsert', uploadEnsemble.single('RutaEnsamble'), async (req, 
             await connection.rollback();
             connection.release();
             return res.status(400).json({
-                error: 'Debe proporcionar un archivo'
+                error: 'You must provide a file'
             });
         }
 
@@ -485,9 +515,21 @@ app.post('/ensamblesInsert', uploadEnsemble.single('RutaEnsamble'), async (req, 
         io.emit('bloqueStatusActualizado', { noParte: BloqueId, campo: 'EnsambleCompleto', valor: true });
         io.emit('ensamblesActualizados');
         ticketsEnsambleAvance.forEach(ticketId => io.emit('ticketEstadoActualizado', { ticketId }));
+        const ensembleDuenosNuevo = await getBlockUserIds(BloqueId);
+        const notifEnsembleCreated = {
+            type: 'ensemble_created',
+            title: 'Ensemble Added',
+            message: `Ensemble ${NombreEnsamble || ''} added to block ${BloqueId}`,
+            ensembleId: result.insertId,
+            bloqueId: BloqueId,
+            userIds: ensembleDuenosNuevo,
+            timestamp: getHermosilloDateTime()
+        };
+        io.emit('notification', notifEnsembleCreated);
+        saveNotification({ ...notifEnsembleCreated, referenciaTipo: 'ensamble', referenciaId: result.insertId, emisorId: UsuarioId, targetUserId: UsuarioId });
 
         res.status(201).json({
-            message: 'Ensemble creado correctamente',
+            message: 'Ensemble created successfully',
             id: result.insertId,
             RutaEnsamble: RutaEnsamble,
             fechaSubida: fechaSubida
@@ -498,7 +540,7 @@ app.post('/ensamblesInsert', uploadEnsemble.single('RutaEnsamble'), async (req, 
         connection.release();
         console.error('Error al insertar ensemble:', error);
         res.status(500).json({
-            error: 'Error al guardar el ensemble en la base de datos',
+            error: 'Error saving ensemble to database',
             details: error.message
         });
     }
@@ -518,7 +560,7 @@ app.post('/ticketsInsert', async (req, res) => {
             );
 
             if (userArea.length === 0) {
-                return res.status(400).json({ error: 'Usuario no encontrado' });
+                return res.status(400).json({ error: 'User not found' });
             }
 
             const areaId = userArea[0].AreaId;
@@ -545,7 +587,7 @@ app.post('/ticketsInsert', async (req, res) => {
 
             if (criticoExistente[0].total > 0) {
                 return res.status(400).json({
-                    error: 'Ya existe un ticket CRÍTICO activo en tu área. No se pueden crear múltiples tickets críticos por área.'
+                    error: 'A CRITICAL ticket already exists in your area. Multiple critical tickets per area are not allowed.'
                 });
             }
         }
@@ -581,7 +623,7 @@ app.post('/ticketsInsert', async (req, res) => {
                 const { BloqueId, Cantidad } = detalle;
 
                 if (!BloqueId || !Cantidad || Cantidad <= 0) {
-                    throw new Error(`BloqueId y Cantidad son requeridos para cada detalle`);
+                    throw new Error(`BloqueId and Cantidad are required for each detail`);
                 }
 
                 await connection.query(
@@ -600,28 +642,48 @@ app.post('/ticketsInsert', async (req, res) => {
                 [ticketId, 1, fechaSolicitacion, SolicitanteId, 'Ticket creado', 'creacion']
             );
 
+            // 4. Auto-apartado: cubrir lo que se pueda con el stock disponible
+            // (también sirve para stock dado de alta ANTES de crear el ticket).
+            // Solo usa lo disponible, sin quitar lo ya apartado a otros.
+            const qTicket = (sql, params) => connection.query(sql, params);
+            const bloquesUnicos = [...new Set(Detalles.map(d => d.BloqueId))];
+            let apartadosNuevo = 0;
+            const bloquesApartados = [];
+            for (const bp of bloquesUnicos) {
+                const rAuto = await repartirBloque(qTicket, bp, SolicitanteId, fechaSolicitacion);
+                apartadosNuevo += rAuto.apartados;
+                if (rAuto.apartados > 0) bloquesApartados.push(bp);
+            }
+
             await connection.commit();
             connection.release();
 
             // Emitir eventos
             io.emit('ticketsActualizados');
+            bloquesApartados.forEach(noParte => io.emit('bloqueInventarioActualizado', { noParte }));
+            io.emit('ticketEstadoActualizado', { ticketId });
             const notifTicketCreated = {
                 type: 'ticket_created',
-                title: 'Nuevo Ticket Creado',
-                message: `Ticket #${ticketId} creado por ${SolicitanteId}`,
+                title: 'New Ticket Created',
+                message: `Ticket #${ticketId} created by ${SolicitanteId}`,
                 ticketId,
                 prioridad: PrioridadId,
+                solicitanteId: SolicitanteId,
+                userIds: [SolicitanteId],
                 timestamp: getHermosilloDateTime()
             };
             io.emit('notification', notifTicketCreated);
             saveNotification({ ...notifTicketCreated, referenciaTipo: 'ticket', referenciaId: ticketId, emisorId: SolicitanteId, targetUserId: SolicitanteId });
 
             res.status(201).json({
-                message: 'Ticket creado correctamente',
+                message: apartadosNuevo > 0
+                    ? `Ticket created successfully and ${apartadosNuevo} piece(s) reserved`
+                    : 'Ticket created successfully',
                 ticketId: ticketId,
                 estadoId: 1, // <-- Indicar que se asignó el estado RECIBIDO
                 fechaSolicitacion: fechaSolicitacion,
-                fechaEstimada: fechaEstimadaStr
+                fechaEstimada: fechaEstimadaStr,
+                apartados: apartadosNuevo
             });
 
         } catch (error) {
@@ -633,7 +695,7 @@ app.post('/ticketsInsert', async (req, res) => {
     } catch (error) {
         console.error('Error al insertar ticket:', error);
         res.status(500).json({
-            error: 'Error al guardar el ticket',
+            error: 'Error saving ticket',
             details: error.message
         });
     }
@@ -650,7 +712,7 @@ app.put('/usuariosUpdate', async (req, res) => {
         );
         io.emit("usuariosActualizados");
 
-        res.json({ message: 'Usuario actualizado correctamente', data: rows });
+        res.json({ message: 'User updated successfully', data: rows });
     } catch (error) {
         console.log('Error al actualizar usuario:', error);
 
@@ -670,7 +732,7 @@ app.put('/usuariosUpdatePassword', async (req, res) => {
         );
         io.emit("usuariosActualizados");
 
-        res.json({ message: 'Contraseña actualizada correctamente' });
+        res.json({ message: 'Password updated successfully' });
     } catch (error) {
         console.error('Error al actualizar contraseña:', error);
         res.status(500).json({ error: 'Server error' });
@@ -683,7 +745,7 @@ app.put('/bloquesUpdate', upload.single('Imagen'), async (req, res) => {
         const { NoParte, NoParteOriginal, CantidadPines, CantPinPresencia, TipoConectorId, TipoTerminalId, ConectorFisico, ImagenUrl, Creador } = req.body;
 
         if (!NoParteOriginal) {
-            return res.status(400).json({ error: 'NoParteOriginal es requerido' });
+            return res.status(400).json({ error: 'NoParteOriginal is required' });
         }
 
         // Si se subió una nueva imagen, usarla; si no, mantener la existente
@@ -697,18 +759,20 @@ app.put('/bloquesUpdate', upload.single('Imagen'), async (req, res) => {
         );
 
         io.emit("bloquesActualizados");
+        const bloqueDuenos = await getBlockUserIds(NoParte);
         const notifBlockUpdated = {
             type: 'block_updated',
-            title: 'Block Actualizado',
-            message: `Block ${NoParte} ha sido actualizado`,
+            title: 'Block Updated',
+            message: `Block ${NoParte} has been updated`,
             noParte: NoParte,
+            userIds: bloqueDuenos,
             timestamp: getHermosilloDateTime()
         };
         io.emit('notification', notifBlockUpdated);
         saveNotification({ ...notifBlockUpdated, referenciaTipo: 'bloque', referenciaId: NoParte, emisorId: Creador, targetUserId: Creador });
 
         res.json({
-            message: 'Bloque actualizado correctamente',
+            message: 'Block updated successfully',
             data: rows,
             imagen: Imagen,
             nuevoNoParte: NoParte
@@ -727,7 +791,7 @@ app.post('/dibujosInsert', uploadDibujo.single('RutaDibujo'), async (req, res) =
         // Validar campos requeridos
         if (!BloqueId || !TipoDibujoId || !UsuarioId) {
             return res.status(400).json({
-                error: 'Faltan campos requeridos: BloqueId, TipoDibujoId, UsuarioId'
+                error: 'Missing required fields: BloqueId, TipoDibujoId, UsuarioId'
             });
         }
 
@@ -749,7 +813,7 @@ app.post('/dibujosInsert', uploadDibujo.single('RutaDibujo'), async (req, res) =
         // Si no hay archivo y no hay URL, error
         if (!rutaDibujo) {
             return res.status(400).json({
-                error: 'Debe proporcionar un archivo o una URL'
+                error: 'You must provide a file or a URL'
             });
         }
 
@@ -764,7 +828,7 @@ app.post('/dibujosInsert', uploadDibujo.single('RutaDibujo'), async (req, res) =
         io.emit('dibujosActualizados');
 
         res.status(201).json({
-            message: 'Dibujo creado correctamente',
+            message: 'Drawing created successfully',
             id: result.insertId,
             rutaDibujo: rutaDibujo,
             nombreDibujo: nombreDibujo,
@@ -774,7 +838,7 @@ app.post('/dibujosInsert', uploadDibujo.single('RutaDibujo'), async (req, res) =
     } catch (error) {
         console.error('Error al insertar dibujo:', error);
         res.status(500).json({
-            error: 'Error al guardar el dibujo en la base de datos',
+            error: 'Error saving drawing to database',
             details: error.message
         });
     }
@@ -787,7 +851,7 @@ app.put('/dibujosUpdate', uploadDibujo.single('RutaDibujo'), async (req, res) =>
         console.log('📝 Actualizando dibujo:', { IdDibujo, BloqueId, TipoDibujoId, FechaSubida });
 
         if (!IdDibujo) {
-            return res.status(400).json({ error: 'IdDibujo es requerido' });
+            return res.status(400).json({ error: 'IdDibujo is required' });
         }
 
         // Obtener el dibujo actual
@@ -797,7 +861,7 @@ app.put('/dibujosUpdate', uploadDibujo.single('RutaDibujo'), async (req, res) =>
         );
 
         if (current.length === 0) {
-            return res.status(404).json({ error: 'Dibujo no encontrado' });
+            return res.status(404).json({ error: 'Drawing not found' });
         }
 
         let rutaDibujo = current[0]?.RutaDibujo || null;
@@ -831,7 +895,7 @@ app.put('/dibujosUpdate', uploadDibujo.single('RutaDibujo'), async (req, res) =>
         io.emit('dibujosActualizados');
 
         res.json({
-            message: 'Dibujo actualizado correctamente',
+            message: 'Drawing updated successfully',
             data: result,
             rutaDibujo: rutaDibujo,
             nombreDibujo: nombreDibujo,
@@ -841,7 +905,7 @@ app.put('/dibujosUpdate', uploadDibujo.single('RutaDibujo'), async (req, res) =>
     } catch (error) {
         console.error('Error al actualizar dibujo:', error);
         res.status(500).json({
-            error: 'Error al actualizar el dibujo',
+            error: 'Error updating drawing',
             details: error.message
         });
     }
@@ -852,7 +916,7 @@ app.put('/ensamblesUpdate', uploadEnsemble.single('RutaEnsamble'), async (req, r
         const { IdEnsamble, BloqueId, NombreEnsamble, RutaEnsambleUrl } = req.body;
 
         if (!IdEnsamble) {
-            return res.status(400).json({ error: 'IdEnsamble es requerido' });
+            return res.status(400).json({ error: 'IdEnsamble is required' });
         }
 
         const [current] = await pool.query(
@@ -861,7 +925,7 @@ app.put('/ensamblesUpdate', uploadEnsemble.single('RutaEnsamble'), async (req, r
         );
 
         if (current.length === 0) {
-            return res.status(404).json({ error: 'Ensemble no encontrado' });
+            return res.status(404).json({ error: 'Ensemble not found' });
         }
 
         let RutaEnsamble = current[0]?.RutaEnsamble || null;
@@ -882,7 +946,7 @@ app.put('/ensamblesUpdate', uploadEnsemble.single('RutaEnsamble'), async (req, r
         io.emit('ensamblesActualizados');
 
         res.json({
-            message: 'Ensemble actualizado correctamente',
+            message: 'Ensemble updated successfully',
             data: result,
             RutaEnsamble: RutaEnsamble
         });
@@ -911,14 +975,14 @@ app.put('/ticketsUpdate/:id', async (req, res) => {
         );
 
         if (ticketActual.length === 0) {
-            return res.status(404).json({ error: 'Ticket no encontrado' });
+            return res.status(404).json({ error: 'Ticket not found' });
         }
 
         const ticket = ticketActual[0];
 
         // ✅ Si el ticket está en papelera, no se puede actualizar
         if (ticket.Activo === 0) {
-            return res.status(400).json({ error: 'No se puede actualizar un ticket en papelera' });
+            return res.status(400).json({ error: 'Cannot update a ticket in trash' });
         }
 
         // 🔒 Candado ENTREGADO: un ticket entregado ya no admite actualizaciones
@@ -927,7 +991,7 @@ app.put('/ticketsUpdate/:id', async (req, res) => {
             ['ENTREGADO']
         );
         if (estadoEntregadoCheck.length > 0 && ticket.EstadoId === estadoEntregadoCheck[0].IdEstado) {
-            return res.status(400).json({ error: 'No se puede actualizar un ticket ENTREGADO' });
+            return res.status(400).json({ error: 'Cannot update a DELIVERED ticket' });
         }
 
         // ✅ VALIDACIÓN: Verificar si es CRÍTICO y si ya existe uno en el área
@@ -947,7 +1011,7 @@ app.put('/ticketsUpdate/:id', async (req, res) => {
             );
 
             if (userArea.length === 0) {
-                return res.status(400).json({ error: 'Usuario no encontrado' });
+                return res.status(400).json({ error: 'User not found' });
             }
 
             const areaId = userArea[0].AreaId;
@@ -975,7 +1039,7 @@ app.put('/ticketsUpdate/:id', async (req, res) => {
 
             if (criticoExistente[0].total > 0) {
                 return res.status(400).json({
-                    error: 'Ya existe un ticket CRÍTICO activo en tu área. No se pueden tener múltiples tickets críticos por área.'
+                    error: 'A CRITICAL ticket already exists in your area. Multiple critical tickets per area are not allowed.'
                 });
             }
         }
@@ -1006,7 +1070,7 @@ app.put('/ticketsUpdate/:id', async (req, res) => {
         }
 
         if (updates.length === 0) {
-            return res.status(400).json({ error: 'No hay campos para actualizar' });
+            return res.status(400).json({ error: 'No fields to update' });
         }
 
         query += updates.join(', ');
@@ -1016,7 +1080,7 @@ app.put('/ticketsUpdate/:id', async (req, res) => {
         const [result] = await pool.query(query, values);
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Ticket no encontrado o no activo' });
+            return res.status(404).json({ error: 'Ticket not found or not active' });
         }
 
         // ✅ Si hay detalles, actualizarlos (guardar los anteriores para el historial)
@@ -1065,18 +1129,21 @@ app.put('/ticketsUpdate/:id', async (req, res) => {
 
         io.emit('ticketsActualizados');
         io.emit('ticketEstadoActualizado', { ticketId: id });
+        const solicitanteTicket = SolicitanteId || ticket.SolicitanteId;
         const notifTicketUpdated = {
             type: 'ticket_updated',
-            title: 'Ticket Actualizado',
-            message: `Ticket #${id} ha sido actualizado`,
+            title: 'Ticket Updated',
+            message: `Ticket #${id} has been updated`,
             ticketId: id,
+            solicitanteId: solicitanteTicket,
+            userIds: solicitanteTicket ? [solicitanteTicket] : [],
             timestamp: getHermosilloDateTime()
         };
         io.emit('notification', notifTicketUpdated);
-        saveNotification({ ...notifTicketUpdated, referenciaTipo: 'ticket', referenciaId: id, emisorId: SolicitanteId, targetUserId: SolicitanteId });
+        saveNotification({ ...notifTicketUpdated, referenciaTipo: 'ticket', referenciaId: id, emisorId: SolicitanteId, targetUserId: solicitanteTicket });
 
         res.json({
-            message: 'Ticket actualizado correctamente',
+            message: 'Ticket updated successfully',
             data: result
         });
 
@@ -1181,7 +1248,7 @@ app.get('/bloquesSelectAll/:noParte', async (req, res) => {
         );
 
         if (rows.length === 0) {
-            return res.status(404).json({ error: 'Bloque no encontrado' });
+            return res.status(404).json({ error: 'Block not found' });
         }
 
         const row = rows[0];
@@ -1416,7 +1483,7 @@ app.get('/ticketEstadoActual/:ticketId', async (req, res) => {
         );
 
         if (rows.length === 0) {
-            return res.status(404).json({ error: 'Ticket no encontrado' });
+            return res.status(404).json({ error: 'Ticket not found' });
         }
 
         res.json(rows[0]);
@@ -1548,13 +1615,13 @@ app.put('/ticketActualizarEstado/:ticketId', async (req, res) => {
         );
 
         if (estadoCheck.length === 0) {
-            return res.status(400).json({ error: 'Estado no válido' });
+            return res.status(400).json({ error: 'Invalid status' });
         }
 
         // Verificar que el estado sea manual
         if (estadoCheck[0].EsAutomatico === 1) {
             return res.status(400).json({
-                error: 'Este estado es automático y no puede ser asignado manualmente'
+                error: 'This status is automatic and cannot be assigned manually'
             });
         }
 
@@ -1564,21 +1631,9 @@ app.put('/ticketActualizarEstado/:ticketId', async (req, res) => {
             [ticketId]
         );
 
-        const [ordenActual] = await pool.query(
-            'SELECT Orden FROM estados WHERE IdEstado = ?',
-            [estadoActual[0].EstadoId]
-        );
-
-        const [nuevoOrden] = await pool.query(
-            'SELECT Orden FROM estados WHERE IdEstado = ?',
-            [EstadoId]
-        );
-
-        if (nuevoOrden[0].Orden < ordenActual[0].Orden) {
-            return res.status(400).json({
-                error: 'No se puede retroceder a un estado anterior'
-            });
-        }
+        // NOTA: se permite regresar a estados anteriores (queda registrado en
+        // el historial). El consumo de material en MAQUINADO solo ocurre la
+        // primera vez que el ticket entra a ese estado (ver abajo).
 
         // VALIDACIÓN: Si el nuevo estado es ENTREGADO, verificar que todos los bloques tengan EnsambleCompleto
         const [estadoEntregado] = await pool.query(
@@ -1595,7 +1650,7 @@ app.put('/ticketActualizarEstado/:ticketId', async (req, res) => {
             
             if (bloquesTicket.length === 0) {
                 return res.status(400).json({ 
-                    error: 'El ticket no tiene bloques asociados' 
+                    error: 'Ticket has no associated blocks' 
                 });
             }
             
@@ -1608,13 +1663,13 @@ app.put('/ticketActualizarEstado/:ticketId', async (req, res) => {
                 
                 if (bloqueStatus.length === 0) {
                     return res.status(400).json({ 
-                        error: `El bloque ${bloque.BloqueId} no existe` 
+                        error: `Block ${bloque.BloqueId} does not exist` 
                     });
                 }
                 
                 if (!bloqueStatus[0].EnsambleCompleto) {
                     return res.status(400).json({ 
-                        error: `El bloque ${bloque.BloqueId} no tiene Ensamble completo. Debe subir el ensamble antes de entregar.` 
+                        error: `Block ${bloque.BloqueId} does not have a complete Ensemble. You must upload the ensemble before delivering.` 
                     });
                 }
             }
@@ -1638,6 +1693,12 @@ app.put('/ticketActualizarEstado/:ticketId', async (req, res) => {
             [EstadoId, ticketId]
         );
 
+        // Inventario blocks: al ENTREGAR se consume lo apartado (salida física)
+        if (estadoCheck[0].NombreEstado === 'ENTREGADO') {
+            await consumirApartadosTicket((sql, params) => pool.query(sql, params), ticketId, UsuarioId);
+        }
+
+
         // Si el nuevo estado es COMPLETO, notificar al solicitante
         if (estadoCheck[0].NombreEstado === 'COMPLETO') {
             const [ticketInfo] = await pool.query(
@@ -1648,10 +1709,12 @@ app.put('/ticketActualizarEstado/:ticketId', async (req, res) => {
             if (ticketInfo.length > 0 && ticketInfo[0].SolicitanteId !== UsuarioId) {
                 const notifTicketCompleted = {
                     type: 'ticket_completed',
-                    title: 'Tu Ticket ha sido Completado',
-                    message: `El ticket #${ticketId} ha sido marcado como COMPLETO`,
+                    title: 'Your Ticket Has Been Completed',
+                    message: `Ticket #${ticketId} has been marked as COMPLETE`,
                     ticketId,
                     targetUserId: ticketInfo[0].SolicitanteId,
+                    solicitanteId: ticketInfo[0].SolicitanteId,
+                    userIds: [ticketInfo[0].SolicitanteId],
                     timestamp: getHermosilloDateTime()
                 };
                 io.emit('notification', notifTicketCompleted);
@@ -1663,9 +1726,9 @@ app.put('/ticketActualizarEstado/:ticketId', async (req, res) => {
 
         res.json({
             success: true,
-            message: `Estado actualizado a: ${estadoCheck[0].NombreEstado}`,
+            message: `Status updated to: ${estadoCheck[0].NombreEstado}`,
             nuevoEstado: estadoCheck[0].NombreEstado,
-            fechaCambio
+            fechaCambio,
         });
     } catch (error) {
         console.error('Error al actualizar estado:', error);
@@ -1763,7 +1826,33 @@ app.get('/bloquesGetStatus/:noParte', async (req, res) => {
             'SELECT DibujosCompleto, ProgramasCompleto, EnsambleCompleto FROM bloques WHERE NoParte = ?',
             [noParte]
         );
- 
+
+        // Resumen de materiales por programa (para el paso MATERIALES del ticket):
+        // cada programa debe tener ≥1 material asignado, stock suficiente y flag explícito.
+        const [matsProg] = await pool.query(
+            `SELECT p.IdPrograma, p.MaterialesCompleto,
+                    (SELECT COUNT(*) FROM programa_materiales pm WHERE pm.ProgramaId = p.IdPrograma) AS recetas,
+                    (SELECT COUNT(*) FROM programa_materiales pm
+                     LEFT JOIN materiales m ON m.IdMateriales = pm.MaterialId
+                     LEFT JOIN tipo_materiales t ON t.IdTipoMaterial = m.TipoMaterialId
+                     WHERE pm.ProgramaId = p.IdPrograma
+                     AND ((COALESCE(t.EsBarra, 0) = 1
+                           AND m.LargoDisponible IS NOT NULL AND pm.Largo IS NOT NULL
+                           AND m.LargoDisponible >= pm.Largo)
+                          OR (COALESCE(t.EsBarra, 0) <> 1
+                           AND m.Cant IS NOT NULL AND m.Cant >= pm.Cantidad))) AS recetasOk
+             FROM programas p
+             LEFT JOIN dibujos_bloques d ON d.IdDibujo = p.DibujoId
+             WHERE p.BloqueId = ? OR d.BloqueId = ?`,
+            [noParte, noParte]
+        );
+        const totalProgs = matsProg.length;
+        const progsConMaterial = matsProg.filter(r => Number(r.recetas) > 0).length;
+        const progsSuficientes = matsProg.filter(r => Number(r.recetas) > 0 && Number(r.recetas) === Number(r.recetasOk)).length;
+        const progsConfirmados = matsProg.filter(r => Number(r.MaterialesCompleto) === 1).length;
+        const materialesOk = totalProgs > 0 && progsConMaterial === totalProgs
+            && progsSuficientes === totalProgs && progsConfirmados === totalProgs;
+
         res.json({
             noParte,
             DibujosCompleto: bloque[0]?.DibujosCompleto || false,
@@ -1772,7 +1861,11 @@ app.get('/bloquesGetStatus/:noParte', async (req, res) => {
             dibujosCount: dibujos.length,
             programasCount: totalProgramas,
             ensamblesCount: ensambles[0].total,
-            drawingsWithoutPrograms
+            drawingsWithoutPrograms,
+            programasTotal: totalProgs,
+            programasConMaterial: progsConMaterial,
+            programasMaterialOk: progsConfirmados,
+            materialesOk
         });
     } catch (error) {
         console.error('Error al obtener estado del bloque:', error);
@@ -1789,13 +1882,13 @@ app.put('/bloquesUpdateDibujosStatus/:noParte', async (req, res) => {
         // Validar admin
         const [userCheck] = await pool.query('SELECT RolId FROM usuarios WHERE NoEmpleado = ?', [UsuarioId]);
         if (userCheck.length === 0 || userCheck[0].RolId !== 1) {
-            return res.status(403).json({ error: 'Solo administradores pueden marcar dibujos como completos' });
+            return res.status(403).json({ error: 'Only administrators can mark drawings as complete' });
         }
  
         // Validar que existan dibujos
         const [dibujos] = await pool.query('SELECT COUNT(*) as total FROM dibujos_bloques WHERE BloqueId = ?', [noParte]);
         if (dibujos[0].total === 0) {
-            return res.status(400).json({ error: 'No hay dibujos subidos para este bloque' });
+            return res.status(400).json({ error: 'No drawings uploaded for this block' });
         }
  
         // Obtener estado actual
@@ -1826,7 +1919,7 @@ app.put('/bloquesUpdateDibujosStatus/:noParte', async (req, res) => {
                  (TicketId, EstadoId, FechaCambio, UsuarioId, Comentario, TipoEvento)
                  VALUES (?, NULL, ?, ?, ?, ?)`,
                 [t.TicketId, fechaToggle, UsuarioId,
-                 `Bloque ${noParte}: dibujos marcados ${nuevoValor ? 'COMPLETOS' : 'INCOMPLETOS'}`,
+                 `Block ${noParte}: drawings marked ${nuevoValor ? 'COMPLETE' : 'INCOMPLETE'}`,
                  'bloque']
             );
             // Avance automático a DISEÑO: todos los bloques del ticket con dibujos completos
@@ -1863,7 +1956,20 @@ app.put('/bloquesUpdateDibujosStatus/:noParte', async (req, res) => {
 
         io.emit('bloqueStatusActualizado', { noParte, campo: 'DibujosCompleto', valor: nuevoValor });
 
-        res.json({ success: true, DibujosCompleto: nuevoValor, message: nuevoValor ? 'Dibujos marcados como completos' : 'Dibujos marcados como incompletos' });
+        // Campana + historial con QUIÉN lo marcó
+        const dibujoMarcadores = await getBlockUserIds(noParte);
+        const notifDibujosMarcados = {
+            type: 'block_updated',
+            title: nuevoValor ? 'Drawings Marked Complete' : 'Drawings Marked Incomplete',
+            message: `Block ${noParte}: drawings marked ${nuevoValor ? 'COMPLETE' : 'INCOMPLETE'}`,
+            noParte,
+            userIds: dibujoMarcadores,
+            timestamp: getHermosilloDateTime()
+        };
+        io.emit('notification', notifDibujosMarcados);
+        saveNotification({ ...notifDibujosMarcados, referenciaTipo: 'bloque', referenciaId: noParte, emisorId: UsuarioId, targetUserId: UsuarioId });
+
+        res.json({ success: true, DibujosCompleto: nuevoValor, message: nuevoValor ? 'Drawings marked as complete' : 'Drawings marked as incomplete' });
     } catch (error) {
         console.error('Error al actualizar estado de dibujos:', error);
         res.status(500).json({ error: 'Server error' });
@@ -1879,13 +1985,13 @@ app.put('/bloquesUpdateProgramasStatus/:noParte', async (req, res) => {
         // Validar admin
         const [userCheck] = await pool.query('SELECT RolId FROM usuarios WHERE NoEmpleado = ?', [UsuarioId]);
         if (userCheck.length === 0 || userCheck[0].RolId !== 1) {
-            return res.status(403).json({ error: 'Solo administradores pueden marcar programas como completos' });
+            return res.status(403).json({ error: 'Only administrators can mark programs as complete' });
         }
  
         // Validar que existan dibujos
         const [dibujos] = await pool.query('SELECT IdDibujo, NombreDibujo FROM dibujos_bloques WHERE BloqueId = ?', [noParte]);
         if (dibujos.length === 0) {
-            return res.status(400).json({ error: 'Primero debe haber dibujos subidos' });
+            return res.status(400).json({ error: 'Drawings must be uploaded first' });
         }
  
         // Verificar que CADA dibujo tenga al menos 1 programa
@@ -1898,7 +2004,7 @@ app.put('/bloquesUpdateProgramasStatus/:noParte', async (req, res) => {
         }
         if (sinProgramas.length > 0) {
             return res.status(400).json({ 
-                error: `Los siguientes dibujos no tienen programas: ${sinProgramas.join(', ')}` 
+                error: `The following drawings have no programs: ${sinProgramas.join(', ')}` 
             });
         }
  
@@ -1930,7 +2036,7 @@ app.put('/bloquesUpdateProgramasStatus/:noParte', async (req, res) => {
                  (TicketId, EstadoId, FechaCambio, UsuarioId, Comentario, TipoEvento)
                  VALUES (?, NULL, ?, ?, ?, ?)`,
                 [t.TicketId, fechaToggleProg, UsuarioId,
-                 `Bloque ${noParte}: programas marcados ${nuevoValor ? 'COMPLETOS' : 'INCOMPLETOS'}`,
+                 `Block ${noParte}: programs marked ${nuevoValor ? 'COMPLETE' : 'INCOMPLETE'}`,
                  'bloque']
             );
             // Avance automático a PROGRAMA: todos los bloques del ticket con programas completos
@@ -1967,7 +2073,20 @@ app.put('/bloquesUpdateProgramasStatus/:noParte', async (req, res) => {
 
         io.emit('bloqueStatusActualizado', { noParte, campo: 'ProgramasCompleto', valor: nuevoValor });
 
-        res.json({ success: true, ProgramasCompleto: nuevoValor, message: nuevoValor ? 'Programas marcados como completos' : 'Programas marcados como incompletos' });
+        // Campana + historial con QUIÉN lo marcó
+        const programaMarcadores = await getBlockUserIds(noParte);
+        const notifProgramasMarcados = {
+            type: 'block_updated',
+            title: nuevoValor ? 'Programs Marked Complete' : 'Programs Marked Incomplete',
+            message: `Block ${noParte}: programs marked ${nuevoValor ? 'COMPLETE' : 'INCOMPLETE'}`,
+            noParte,
+            userIds: programaMarcadores,
+            timestamp: getHermosilloDateTime()
+        };
+        io.emit('notification', notifProgramasMarcados);
+        saveNotification({ ...notifProgramasMarcados, referenciaTipo: 'bloque', referenciaId: noParte, emisorId: UsuarioId, targetUserId: UsuarioId });
+
+        res.json({ success: true, ProgramasCompleto: nuevoValor, message: nuevoValor ? 'Programs marked as complete' : 'Programs marked as incomplete' });
     } catch (error) {
         console.error('Error al actualizar estado de programas:', error);
         res.status(500).json({ error: 'Server error' });
@@ -1987,7 +2106,7 @@ app.put('/bloqueMarcarCompleto/:noParte', async (req, res) => {
         );
 
         if (userCheck.length === 0 || userCheck[0].RolId !== 1) {
-            return res.status(403).json({ error: 'Solo administradores pueden marcar bloques como completos' });
+            return res.status(403).json({ error: 'Only administrators can mark blocks as complete' });
         }
 
         // Verificar si el bloque existe
@@ -1997,7 +2116,7 @@ app.put('/bloqueMarcarCompleto/:noParte', async (req, res) => {
         );
 
         if (bloqueCheck.length === 0) {
-            return res.status(404).json({ error: 'Bloque no encontrado' });
+            return res.status(404).json({ error: 'Block not found' });
         }
 
         // Marcar el bloque como completo (podrías agregar un campo "Completo" en la tabla bloques)
@@ -2010,7 +2129,7 @@ app.put('/bloqueMarcarCompleto/:noParte', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Bloque marcado como completo'
+            message: 'Block marked as complete'
         });
     } catch (error) {
         console.error('Error al marcar bloque como completo:', error);
@@ -2045,7 +2164,7 @@ app.get('/ticketsSelect', async (req, res) => {
                 u.Nombre as SolicitanteNombre,
                 u.AreaId,
                 a.NombreArea,
-                DATE_FORMAT(t.FechaSolicitacion, '%d/%m/%Y %H:%i') as FechaSolicitacionFormateada,
+                DATE_FORMAT(t.FechaSolicitacion, '%d/%m/%Y') as FechaSolicitacionFormateada,
                 DATE_FORMAT(t.FechaDeseada, '%d/%m/%Y') as FechaDeseadaFormateada,
                 DATE_FORMAT(t.FechaEstimada, '%d/%m/%Y') as FechaEstimadaFormateada,
                 DATE_FORMAT(t.FechaEntrega, '%d/%m/%Y') as FechaEntregaFormateada,
@@ -2112,12 +2231,14 @@ app.get('/ticketsSelect', async (req, res) => {
         const ticketsWithDetails = await Promise.all(
             tickets.map(async (ticket) => {
                 const [detalles] = await pool.query(
-                    `SELECT 
+                    `SELECT
                         td.IdTicketDetail,
                         td.BloqueId,
                         td.Cantidad,
                         b.NoParte,
-                        tc.TipoConector
+                        tc.TipoConector,
+                        (SELECT COALESCE(SUM(ap.Cantidad), 0) FROM bloque_apartados ap
+                         WHERE ap.TicketId = td.TicketId AND ap.BloqueId = td.BloqueId) AS Apartado
                     FROM tickets_details td
                     LEFT JOIN bloques b ON td.BloqueId = b.NoParte
                     LEFT JOIN tipo_conector tc ON b.TipoConectorId = tc.IdTipoConector
@@ -2183,12 +2304,14 @@ app.get('/ticketsCompletados', async (req, res) => {
         const ticketsWithDetails = await Promise.all(
             tickets.map(async (ticket) => {
                 const [detalles] = await pool.query(
-                    `SELECT 
+                    `SELECT
                         td.IdTicketDetail,
                         td.BloqueId,
                         td.Cantidad,
                         b.NoParte,
-                        tc.TipoConector
+                        tc.TipoConector,
+                        (SELECT COALESCE(SUM(ap.Cantidad), 0) FROM bloque_apartados ap
+                         WHERE ap.TicketId = td.TicketId AND ap.BloqueId = td.BloqueId) AS Apartado
                     FROM tickets_details td
                     LEFT JOIN bloques b ON td.BloqueId = b.NoParte
                     LEFT JOIN tipo_conector tc ON b.TipoConectorId = tc.IdTipoConector
@@ -2243,6 +2366,86 @@ app.get('/ticketsCheckCritico/:areaId', async (req, res) => {
     }
 });
 
+// READINESS PARA CIERRE: indica si el ticket ya se puede cerrar (no bloquea).
+// Revisa ensambles listos, programas con material + Mats ✓, y apartados pendientes.
+app.get('/ticketListoParaCierre/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [tick] = await pool.query('SELECT IdTicket FROM tickets WHERE IdTicket = ?', [id]);
+        if (tick.length === 0) {
+            return res.status(404).json({ error: 'Ticket not found' });
+        }
+        const [dets] = await pool.query('SELECT BloqueId, Cantidad FROM tickets_details WHERE TicketId = ?', [id]);
+        const checks = [];
+        let todoOk = true;
+        if (dets.length === 0) {
+            checks.push({ clave: 'bloques', etiqueta: 'Bloques en el ticket', ok: false, detalle: 'sin bloques' });
+            todoOk = false;
+        } else {
+            // 1. Ensambles de todos los bloques
+            const [ens] = await pool.query(
+                `SELECT td.BloqueId, COALESCE(MAX(b.EnsambleCompleto), 0) AS okEns
+                 FROM tickets_details td
+                 LEFT JOIN bloques b ON b.NoParte = td.BloqueId
+                 WHERE td.TicketId = ?
+                 GROUP BY td.BloqueId`,
+                [id]
+            );
+            const faltanEns = ens.filter(e => Number(e.okEns) !== 1).map(e => e.BloqueId);
+            checks.push({
+                clave: 'ensambles',
+                etiqueta: 'Ensambles completos',
+                ok: faltanEns.length === 0,
+                detalle: faltanEns.length === 0 ? `${ens.length} bloque(s) OK` : `faltan: ${faltanEns.join(', ')}`
+            });
+            if (faltanEns.length > 0) todoOk = false;
+            // 2. Programas con material + Mats ✓
+            const [progs] = await pool.query(
+                `SELECT DISTINCT p.IdPrograma, COALESCE(p.MaterialesCompleto, 0) AS flag,
+                        (SELECT COUNT(*) FROM programa_materiales pm WHERE pm.ProgramaId = p.IdPrograma) AS recetas
+                 FROM programas p
+                 LEFT JOIN dibujos_bloques d ON d.IdDibujo = p.DibujoId
+                 JOIN tickets_details td ON td.BloqueId = p.BloqueId OR td.BloqueId = d.BloqueId
+                 WHERE td.TicketId = ?`,
+                [id]
+            );
+            if (progs.length === 0) {
+                checks.push({ clave: 'programas', etiqueta: 'Programas con material', ok: false, detalle: 'sin programas' });
+                todoOk = false;
+            } else {
+                const sinMat = progs.filter(p => Number(p.recetas) === 0).length;
+                const sinFlag = progs.filter(p => Number(p.flag) !== 1).length;
+                const okProg = sinMat === 0 && sinFlag === 0;
+                checks.push({
+                    clave: 'programas',
+                    etiqueta: 'Materiales en programas (Mats ✓)',
+                    ok: okProg,
+                    detalle: okProg
+                        ? `${progs.length} programa(s) OK`
+                        : `${sinMat > 0 ? `${sinMat} sin material` : ''}${sinMat > 0 && sinFlag > 0 ? ' · ' : ''}${sinFlag > 0 ? `${sinFlag} sin confirmar` : ''}`
+                });
+                if (!okProg) todoOk = false;
+            }
+        }
+        // 3. Apartados pendientes (informativo)
+        const [ap] = await pool.query(
+            'SELECT COALESCE(SUM(Cantidad), 0) AS total FROM bloque_apartados WHERE TicketId = ?',
+            [id]
+        );
+        const apartados = Number(ap[0].total) || 0;
+        checks.push({
+            clave: 'apartados',
+            etiqueta: 'Piezas apartadas',
+            ok: true,
+            detalle: apartados > 0 ? `${apartados} reservada(s) (se consumen al entregar)` : 'sin apartados'
+        });
+        res.json({ listo: todoOk, checks });
+    } catch (error) {
+        console.error('Error al verificar cierre:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // CERRAR TICKET (usando EstadoId en lugar de string)
 app.put('/ticketsCerrar/:id', async (req, res) => {
     try {
@@ -2256,7 +2459,7 @@ app.put('/ticketsCerrar/:id', async (req, res) => {
         );
 
         if (userCheck.length === 0 || userCheck[0].RolId !== 1) {
-            return res.status(403).json({ error: 'No tienes permisos para cerrar tickets' });
+            return res.status(403).json({ error: 'You do not have permission to close tickets' });
         }
 
         // VALIDACIÓN: Verificar que todos los bloques del ticket tengan EnsambleCompleto
@@ -2267,7 +2470,7 @@ app.put('/ticketsCerrar/:id', async (req, res) => {
         
         if (bloquesTicket.length === 0) {
             return res.status(400).json({ 
-                error: 'El ticket no tiene bloques asociados' 
+                error: 'Ticket has no associated blocks' 
             });
         }
         
@@ -2280,13 +2483,13 @@ app.put('/ticketsCerrar/:id', async (req, res) => {
             
             if (bloqueStatus.length === 0) {
                 return res.status(400).json({ 
-                    error: `El bloque ${bloque.BloqueId} no existe` 
+                    error: `Block ${bloque.BloqueId} does not exist` 
                 });
             }
             
             if (!bloqueStatus[0].EnsambleCompleto) {
                 return res.status(400).json({ 
-                    error: `El bloque ${bloque.BloqueId} no tiene Ensamble completo. Debe subir el ensamble antes de cerrar.` 
+                    error: `Block ${bloque.BloqueId} does not have a complete Ensemble. You must upload the ensemble before closing.` 
                 });
             }
         }
@@ -2298,7 +2501,7 @@ app.put('/ticketsCerrar/:id', async (req, res) => {
         );
 
         if (estadoCompleto.length === 0) {
-            return res.status(500).json({ error: 'Estado "COMPLETO" no encontrado' });
+            return res.status(500).json({ error: 'Status "COMPLETO" not found' });
         }
 
         const now = new Date();
@@ -2316,7 +2519,7 @@ app.put('/ticketsCerrar/:id', async (req, res) => {
         );
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Ticket no encontrado' });
+            return res.status(404).json({ error: 'Ticket not found' });
         }
 
         // Obtener el solicitante del ticket para notificarle
@@ -2339,10 +2542,12 @@ app.put('/ticketsCerrar/:id', async (req, res) => {
         if (ticketInfo.length > 0 && ticketInfo[0].SolicitanteId !== CerradoPor) {
             const notifTicketCompleted = {
                 type: 'ticket_completed',
-                title: 'Tu Ticket ha sido Completado',
-                message: `El ticket #${id} ha sido marcado como COMPLETO`,
+                title: 'Your Ticket Has Been Completed',
+                message: `Ticket #${id} has been marked as COMPLETE`,
                 ticketId: id,
                 targetUserId: ticketInfo[0].SolicitanteId,
+                solicitanteId: ticketInfo[0].SolicitanteId,
+                userIds: [ticketInfo[0].SolicitanteId],
                 timestamp: getHermosilloDateTime()
             };
             io.emit('notification', notifTicketCompleted);
@@ -2351,7 +2556,7 @@ app.put('/ticketsCerrar/:id', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Ticket cerrado correctamente'
+            message: 'Ticket closed successfully'
         });
     } catch (error) {
         console.error('Error al cerrar ticket:', error);
@@ -2372,7 +2577,7 @@ app.put('/ticketsRestaurar/:id', async (req, res) => {
         );
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Ticket no encontrado en papelera' });
+            return res.status(404).json({ error: 'Ticket not found in trash' });
         }
 
         // Historial: ticket restaurado
@@ -2389,7 +2594,7 @@ app.put('/ticketsRestaurar/:id', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Ticket restaurado correctamente'
+            message: 'Ticket restored successfully'
         });
     } catch (error) {
         console.error('Error al restaurar ticket:', error);
@@ -2427,17 +2632,19 @@ app.get('/ticketsSelect/:id', async (req, res) => {
         );
 
         if (tickets.length === 0) {
-            return res.status(404).json({ error: 'Ticket no encontrado' });
+            return res.status(404).json({ error: 'Ticket not found' });
         }
 
         // 2. Obtener los detalles del ticket
         const [detalles] = await pool.query(
-            `SELECT 
+            `SELECT
                 td.IdTicketDetail,
                 td.BloqueId,
                 td.Cantidad,
                 b.NoParte,
-                tc.TipoConector
+                tc.TipoConector,
+                (SELECT COALESCE(SUM(ap.Cantidad), 0) FROM bloque_apartados ap
+                 WHERE ap.TicketId = td.TicketId AND ap.BloqueId = td.BloqueId) AS Apartado
             FROM tickets_details td
             LEFT JOIN bloques b ON td.BloqueId = b.NoParte
             LEFT JOIN tipo_conector tc ON b.TipoConectorId = tc.IdTipoConector
@@ -2466,21 +2673,6 @@ app.put('/ticketsDeleteSoft/:id', async (req, res) => {
         const hermosilloTime = new Date(now.getTime() - (7 * 60 * 60 * 1000));
         const fechaEliminacion = hermosilloTime.toISOString().slice(0, 19).replace('T', ' ');
 
-        // 🔒 Candado ENTREGADO: un ticket entregado no se puede mandar a papelera
-        const [ticketEstado] = await pool.query(
-            `SELECT t.EstadoId FROM tickets t WHERE t.IdTicket = ?`,
-            [id]
-        );
-        if (ticketEstado.length > 0) {
-            const [entregado] = await pool.query(
-                'SELECT IdEstado FROM estados WHERE NombreEstado = ?',
-                ['ENTREGADO']
-            );
-            if (entregado.length > 0 && ticketEstado[0].EstadoId === entregado[0].IdEstado) {
-                return res.status(400).json({ error: 'No se puede mover a papelera un ticket ENTREGADO' });
-            }
-        }
-
         const [result] = await pool.query(
             `UPDATE tickets
              SET Activo = 0, FechaEliminacion = ?
@@ -2489,7 +2681,7 @@ app.put('/ticketsDeleteSoft/:id', async (req, res) => {
         );
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Ticket no encontrado' });
+            return res.status(404).json({ error: 'Ticket not found' });
         }
 
         // Historial: ticket movido a papelera (FIX: CerradoPor no existía en este scope)
@@ -2501,13 +2693,19 @@ app.put('/ticketsDeleteSoft/:id', async (req, res) => {
             [id, fechaEliminacion, eliminadoPor, 'Ticket movido a papelera', 'papelera']
         );
 
+        // Inventario blocks: liberar lo apartado (vuelve a disponible)
+        await liberarApartadosTicket((sql, params) => pool.query(sql, params), id, eliminadoPor);
+
         io.emit('ticketsActualizados');
         io.emit('ticketEstadoActualizado', { ticketId: id });
+        const solicitanteTrash = await getTicketSolicitante(id);
         const notifTicketTrashed = {
             type: 'ticket_trashed',
-            title: 'Ticket a Papelera',
-            message: `Ticket #${id} movido a papelera`,
+            title: 'Ticket to Trash',
+            message: `Ticket #${id} moved to trash`,
             ticketId: id,
+            solicitanteId: solicitanteTrash,
+            userIds: solicitanteTrash ? [solicitanteTrash] : [],
             timestamp: getHermosilloDateTime()
         };
         io.emit('notification', notifTicketTrashed);
@@ -2515,7 +2713,7 @@ app.put('/ticketsDeleteSoft/:id', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Ticket movido a papelera correctamente'
+            message: 'Ticket moved to trash successfully'
         });
     } catch (error) {
         console.error('Error al mover ticket a papelera:', error);
@@ -2528,7 +2726,7 @@ app.delete('/blocksDelete/:NoParte', async (req, res) => {
     const { NoParte } = req.params;
 
     if (!NoParte) {
-        return res.status(400).json({ error: 'ID de bloque invalido' });
+        return res.status(400).json({ error: 'Invalid block ID' });
     }
 
     try {
@@ -2537,7 +2735,7 @@ app.delete('/blocksDelete/:NoParte', async (req, res) => {
             [NoParte]
         );
         if (existingBLock.length === 0) {
-            return res.status(404).json({ error: 'bloque no encontrado' });
+            return res.status(404).json({ error: 'Block not found' });
         }
 
         const [result] = await pool.query(
@@ -2546,28 +2744,30 @@ app.delete('/blocksDelete/:NoParte', async (req, res) => {
         );
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'bloque no encontrado' });
+            return res.status(404).json({ error: 'Block not found' });
         }
 
         io.emit("bloquesActualizados");
+        const bloqueDuenosDel = await getBlockUserIds(NoParte);
         const notifBlockDeleted = {
             type: 'block_deleted',
-            title: 'Block Eliminado',
-            message: `Block ${NoParte} eliminado`,
+            title: 'Block Deleted',
+            message: `Block ${NoParte} deleted`,
             noParte: NoParte,
+            userIds: bloqueDuenosDel,
             timestamp: getHermosilloDateTime()
         };
         io.emit('notification', notifBlockDeleted);
-        saveNotification({ ...notifBlockDeleted, referenciaTipo: 'bloque', referenciaId: NoParte, emisorId: req.body.UsuarioId, targetUserId: req.body.UsuarioId });
+        saveNotification({ ...notifBlockDeleted, referenciaTipo: 'bloque', referenciaId: NoParte, emisorId: req.body?.UsuarioId || null, targetUserId: req.body?.UsuarioId || null });
 
         res.json({
             success: true,
-            message: 'Bloque eliminado correctamente',
+            message: 'Block deleted successfully',
             NoParte: NoParte
         });
     } catch (error) {
         console.error('Error al eliminar bloque:', error);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 /*---------------------------------------------------DIBUJOS---------------------------------------------------*/
@@ -2575,17 +2775,18 @@ app.delete('/dibujosDelete/:IdDibujo', async (req, res) => {
     const { IdDibujo } = req.params;
 
     if (!IdDibujo) {
-        return res.status(400).json({ error: 'ID de dibujo inválido' });
+        return res.status(400).json({ error: 'Invalid drawing ID' });
     }
 
     try {
         const [existingDrawing] = await pool.query(
-            'SELECT IdDibujo FROM dibujos_bloques WHERE IdDibujo = ?',
+            'SELECT IdDibujo, BloqueId FROM dibujos_bloques WHERE IdDibujo = ?',
             [IdDibujo]
         );
         if (existingDrawing.length === 0) {
-            return res.status(404).json({ error: 'Dibujo no encontrado' });
+            return res.status(404).json({ error: 'Drawing not found' });
         }
+        const bloqueDelDibujo = existingDrawing[0].BloqueId;
 
         // VALIDACIÓN: Verificar si el dibujo tiene programas asociados
         const [programas] = await pool.query(
@@ -2595,7 +2796,7 @@ app.delete('/dibujosDelete/:IdDibujo', async (req, res) => {
 
         if (programas[0].total > 0) {
             return res.status(400).json({ 
-                error: `No se puede eliminar el dibujo. Tiene ${programas[0].total} programa(s) asociado(s). Elimine primero los programas.`
+                error: `Cannot delete drawing. It has ${programas[0].total} associated program(s). Delete the programs first.`
             });
         }
 
@@ -2605,15 +2806,18 @@ app.delete('/dibujosDelete/:IdDibujo', async (req, res) => {
         );
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Dibujo no encontrado' });
+            return res.status(404).json({ error: 'Drawing not found' });
         }
 
         io.emit('dibujosActualizados');
+        const dibujoDuenos = await getBlockUserIds(bloqueDelDibujo);
         const notifDrawingDeleted = {
             type: 'drawing_deleted',
-            title: 'Dibujo Eliminado',
-            message: `Dibujo eliminado`,
+            title: 'Drawing Deleted',
+            message: `Drawing deleted`,
             dibujoId: IdDibujo,
+            bloqueId: bloqueDelDibujo,
+            userIds: dibujoDuenos,
             timestamp: getHermosilloDateTime()
         };
         io.emit('notification', notifDrawingDeleted);
@@ -2621,12 +2825,12 @@ app.delete('/dibujosDelete/:IdDibujo', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Dibujo eliminado correctamente',
+            message: 'Drawing deleted successfully',
             IdDibujo: IdDibujo
         });
     } catch (error) {
         console.error('Error al eliminar dibujo:', error);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 /*---------------------------------------------------PROGRAMAS---------------------------------------------------*/
@@ -2635,13 +2839,14 @@ app.delete('/programasDelete/:id', async (req, res) => {
         const { id } = req.params;
 
         const [rows] = await pool.query(
-            'SELECT RutaPrograma FROM programas WHERE IdPrograma = ?',
+            'SELECT RutaPrograma, DibujoId FROM programas WHERE IdPrograma = ?',
             [id]
         );
 
         if (rows.length === 0) {
-            return res.status(404).json({ error: 'Programa no encontrado' });
+            return res.status(404).json({ error: 'Program not found' });
         }
+        const bloqueDelPrograma = await getDibujoBloque(rows[0].DibujoId);
 
         // Eliminar archivo físico
         if (rows[0].RutaPrograma) {
@@ -2654,11 +2859,14 @@ app.delete('/programasDelete/:id', async (req, res) => {
         await pool.query('DELETE FROM programas WHERE IdPrograma = ?', [id]);
 
         io.emit('programasActualizados');
+        const programaDuenos = await getBlockUserIds(bloqueDelPrograma);
         const notifProgramDeleted = {
             type: 'program_deleted',
-            title: 'Programa Eliminado',
-            message: `Programa eliminado`,
+            title: 'Program Deleted',
+            message: `Program deleted`,
             programaId: id,
+            bloqueId: bloqueDelPrograma,
+            userIds: programaDuenos,
             timestamp: getHermosilloDateTime()
         };
         io.emit('notification', notifProgramDeleted);
@@ -2666,11 +2874,11 @@ app.delete('/programasDelete/:id', async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Programa eliminado correctamente'
+            message: 'Program deleted successfully'
         });
     } catch (error) {
         console.error('Error al eliminar programa:', error);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
@@ -2691,7 +2899,7 @@ app.delete('/ensamblesDelete/:id', async (req, res) => {
         if (rows.length === 0) {
             await connection.rollback();
             connection.release();
-            return res.status(404).json({ error: 'Ensemble no encontrado' });
+            return res.status(404).json({ error: 'Ensemble not found' });
         }
 
         const { RutaEnsamble, BloqueId } = rows[0];
@@ -2726,19 +2934,22 @@ app.delete('/ensamblesDelete/:id', async (req, res) => {
         connection.release();
 
         io.emit('ensamblesActualizados');
+        const ensembleDuenos = await getBlockUserIds(BloqueId);
         const notifEnsembleDeleted = {
             type: 'ensemble_deleted',
-            title: 'Ensemble Eliminado',
-            message: `Ensemble eliminado`,
+            title: 'Ensemble Deleted',
+            message: `Ensemble deleted`,
             ensembleId: id,
+            bloqueId: BloqueId,
+            userIds: ensembleDuenos,
             timestamp: getHermosilloDateTime()
         };
         io.emit('notification', notifEnsembleDeleted);
-        saveNotification({ ...notifEnsembleDeleted, referenciaTipo: 'ensamble', referenciaId: id, emisorId: req.body.UsuarioId || null });
+        saveNotification({ ...notifEnsembleDeleted, referenciaTipo: 'ensamble', referenciaId: id, emisorId: req.body?.UsuarioId || null });
 
         res.json({
             success: true,
-            message: 'Ensemble eliminado correctamente'
+            message: 'Ensemble deleted successfully'
         });
     } catch (error) {
         await connection.rollback();
@@ -2760,7 +2971,7 @@ app.get('/programasDownload/:id', async (req, res) => {
         );
 
         if (rows.length === 0) {
-            return res.status(404).json({ error: 'Programa no encontrado' });
+            return res.status(404).json({ error: 'Program not found' });
         }
 
         const programa = rows[0];
@@ -2770,7 +2981,7 @@ app.get('/programasDownload/:id', async (req, res) => {
         try {
             await fsp.access(filePath);
         } catch (error) {
-            return res.status(404).json({ error: 'Archivo no encontrado' });
+            return res.status(404).json({ error: 'File not found' });
         }
 
         // ✅ Obtener la extensión del archivo original
@@ -2787,7 +2998,7 @@ app.get('/programasDownload/:id', async (req, res) => {
         res.download(filePath, nombreDescarga, (err) => {
             if (err) {
                 console.error('Error al descargar programa:', err);
-                res.status(500).json({ error: 'Error al descargar el programa' });
+                res.status(500).json({ error: 'Error downloading program' });
             }
         });
 
@@ -2805,8 +3016,14 @@ app.delete('/ticketsDeletePermanente/:id', async (req, res) => {
         await connection.beginTransaction();
 
         try {
+            // Solicitante antes de borrar (para avisarle al dueño)
+            const solicitanteDel = await getTicketSolicitante(id);
+
             // Eliminar detalles
             await connection.query('DELETE FROM tickets_details WHERE TicketId = ?', [id]);
+
+            // Eliminar apartados (el kardex de movimientos se conserva como auditoría)
+            await connection.query('DELETE FROM bloque_apartados WHERE TicketId = ?', [id]);
 
             // Eliminar historial (evita filas huérfanas)
             await connection.query('DELETE FROM ordenes_estados_historial WHERE TicketId = ?', [id]);
@@ -2817,7 +3034,7 @@ app.delete('/ticketsDeletePermanente/:id', async (req, res) => {
             if (result.affectedRows === 0) {
                 await connection.rollback();
                 connection.release();
-                return res.status(404).json({ error: 'Ticket no encontrado' });
+                return res.status(404).json({ error: 'Ticket not found' });
             }
 
 await connection.commit();
@@ -2827,9 +3044,11 @@ await connection.commit();
             const eliminadoPor = req.body?.UsuarioId ?? null;
             const notifTicketDeleted = {
                 type: 'ticket_deleted',
-                title: 'Ticket Eliminado Permanentemente',
-                message: `Ticket #${id} eliminado permanentemente`,
+                title: 'Ticket Permanently Deleted',
+                message: `Ticket #${id} permanently deleted`,
                 ticketId: id,
+                solicitanteId: solicitanteDel,
+                userIds: solicitanteDel ? [solicitanteDel] : [],
                 timestamp: getHermosilloDateTime()
             };
             io.emit('notification', notifTicketDeleted);
@@ -2837,7 +3056,7 @@ await connection.commit();
 
             res.json({
                 success: true,
-                message: 'Ticket eliminado permanentemente'
+                message: 'Ticket permanently deleted'
             });
         } catch (error) {
             await connection.rollback();
@@ -2862,7 +3081,7 @@ app.get('/ensamblesDownload/:id', async (req, res) => {
         );
 
         if (rows.length === 0) {
-            return res.status(404).json({ error: 'Ensemble no encontrado' });
+            return res.status(404).json({ error: 'Ensemble not found' });
         }
 
         const ensemble = rows[0];
@@ -2871,7 +3090,7 @@ app.get('/ensamblesDownload/:id', async (req, res) => {
         try {
             await fsp.access(filePath);
         } catch (error) {
-            return res.status(404).json({ error: 'Archivo no encontrado' });
+            return res.status(404).json({ error: 'File not found' });
         }
 
         const extension = path.extname(ensemble.RutaEnsamble || '');
@@ -2881,7 +3100,7 @@ app.get('/ensamblesDownload/:id', async (req, res) => {
         res.download(filePath, nombreDescarga, (err) => {
             if (err) {
                 console.error('Error al descargar ensemble:', err);
-                res.status(500).json({ error: 'Error al descargar el ensemble' });
+                res.status(500).json({ error: 'Error downloading ensemble' });
             }
         });
 
@@ -2890,6 +3109,52 @@ app.get('/ensamblesDownload/:id', async (req, res) => {
         res.status(500).json({ error: 'Server error' });
     }
 });
+// =============================================
+// VER ARCHIVO EN EL NAVEGADOR (previsualización)
+// Sirve imágenes/PDF inline y archivos de texto/código como text/plain.
+// Solo carpetas permitidas y nombre sanitizado (anti path-traversal).
+// =============================================
+app.get('/archivosVer/:tipo/:archivo', async (req, res) => {
+    try {
+        const { tipo, archivo } = req.params;
+
+        const carpetas = {
+            dibujos: 'uploads/dibujos',
+            programas: 'uploads/programas',
+            ensambles: 'uploads/ensambles',
+            bloques: 'uploads/bloques'
+        };
+
+        if (!carpetas[tipo]) {
+            return res.status(404).json({ error: 'Invalid file type' });
+        }
+
+        const nombre = path.basename(String(archivo || ''));
+        if (!nombre || nombre.startsWith('.')) {
+            return res.status(400).json({ error: 'Invalid file name' });
+        }
+
+        const filePath = path.join(__dirname, carpetas[tipo], nombre);
+
+        try {
+            await fsp.access(filePath);
+        } catch (error) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const ext = path.extname(nombre).toLowerCase();
+        const comoTexto = ['.txt', '.nc', '.cnc', '.mcam', '.tap', '.mpf', '.cnc'];
+        if (comoTexto.includes(ext)) {
+            res.type('text/plain; charset=utf-8');
+        }
+
+        res.sendFile(filePath);
+    } catch (error) {
+        console.error('Error al servir archivo:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // =============================================
 // METRICS ENDPOINTS PARA DASHBOARD
 // =============================================
@@ -3156,28 +3421,105 @@ app.get('/metrics/avgCompletionDays', async (req, res) => {
 // NOTIFICACIONES - HISTORIAL
 // =============================================
 
+// Helpers de direccionamiento: quiénes deben recibir un evento.
+// - Tickets: su solicitante.
+// - Bloques/dibujos/programas/ensambles: solicitantes de los tickets (activos o no)
+//   que contienen el bloque, para que cada usuario vea lo de SUS tickets.
+const getTicketSolicitante = async (ticketId) => {
+    try {
+        if (!ticketId) return null;
+        const [r] = await pool.query('SELECT SolicitanteId FROM tickets WHERE IdTicket = ?', [ticketId]);
+        return r.length > 0 ? r[0].SolicitanteId : null;
+    } catch {
+        return null;
+    }
+};
+
+const getBlockUserIds = async (noParte) => {
+    try {
+        if (!noParte) return [];
+        const [r] = await pool.query(
+            `SELECT DISTINCT t.SolicitanteId AS id FROM tickets_details td
+             JOIN tickets t ON t.IdTicket = td.TicketId
+             WHERE td.BloqueId = ? AND t.SolicitanteId IS NOT NULL`,
+            [noParte]
+        );
+        return r.map(x => x.id);
+    } catch {
+        return [];
+    }
+};
+
+const getDibujoBloque = async (dibujoId) => {
+    try {
+        if (!dibujoId) return null;
+        const [r] = await pool.query('SELECT BloqueId FROM dibujos_bloques WHERE IdDibujo = ?', [dibujoId]);
+        return r.length > 0 ? r[0].BloqueId : null;
+    } catch {
+        return null;
+    }
+};
+
+const getProgramaBloque = async (programaId) => {
+    try {
+        if (!programaId) return null;
+        const [r] = await pool.query(
+            `SELECT d.BloqueId FROM programas p
+             JOIN dibujos_bloques d ON d.IdDibujo = p.DibujoId
+             WHERE p.IdPrograma = ?`,
+            [programaId]
+        );
+        return r.length > 0 ? r[0].BloqueId : null;
+    } catch {
+        return null;
+    }
+};
+
+// Cache de admins (se refresca cada minuto) para el fan-out del historial
+let adminIdsCache = null;
+let adminIdsCacheAt = 0;
+const getAdminIds = async () => {
+    try {
+        if (adminIdsCache && Date.now() - adminIdsCacheAt < 60000) return adminIdsCache;
+        const [r] = await pool.query('SELECT NoEmpleado FROM usuarios WHERE RolId = 1');
+        adminIdsCache = r.map(x => x.NoEmpleado);
+        adminIdsCacheAt = Date.now();
+        return adminIdsCache;
+    } catch {
+        return adminIdsCache || [];
+    }
+};
+
 // Función helper para guardar notificación en BD
 // Si no hay usuario destino (eventos broadcast como deletes sin UsuarioId),
 // no se guarda fila y se evita el error "Column 'UsuarioId' cannot be null".
 // El evento en tiempo real ya se emitió con io.emit antes de llamar aquí.
+// Fan-out: se guarda una fila por cada destinatario (target + userIds + TODOS
+// los admins) para que el historial de cada admin muestre todo y el de cada
+// user solo lo de sus tickets.
 const saveNotification = async (notification) => {
-    const targetId = notification?.targetUserId ?? notification?.UsuarioId ?? null;
-    if (targetId === null || targetId === undefined || targetId === '') return;
+    const baseId = notification?.targetUserId ?? notification?.UsuarioId ?? null;
+    const extras = Array.isArray(notification?.userIds) ? notification.userIds : [];
+    const admins = await getAdminIds();
+    const targets = [...new Set([baseId, ...extras, ...admins].filter(v => v !== null && v !== undefined && v !== ''))];
+    if (targets.length === 0) return;
     try {
-        await pool.query(
-            `INSERT INTO notificaciones_historial 
-             (Tipo, Titulo, Mensaje, UsuarioId, UsuarioEmisorId, ReferenciaId, ReferenciaTipo) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-                notification.type,
-                notification.title,
-                notification.message,
-                notification.targetUserId || notification.UsuarioId,
-                notification.emisorId || notification.UsuarioEmisorId,
-                notification.referenciaId || notification.ReferenciaId,
-                notification.referenciaTipo || notification.ReferenciaTipo
-            ]
-        );
+        for (const targetId of targets) {
+            await pool.query(
+                `INSERT INTO notificaciones_historial
+                 (Tipo, Titulo, Mensaje, UsuarioId, UsuarioEmisorId, ReferenciaId, ReferenciaTipo)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    notification.type,
+                    notification.title,
+                    notification.message,
+                    targetId,
+                    notification.emisorId || notification.UsuarioEmisorId,
+                    notification.referenciaId || notification.ReferenciaId,
+                    notification.referenciaTipo || notification.ReferenciaTipo
+                ]
+            );
+        }
     } catch (error) {
         console.error('Error guardando notificación en BD:', error);
     }
@@ -3189,7 +3531,7 @@ app.get('/notificaciones/historial', async (req, res) => {
         const { usuarioId, leida, limite, offset } = req.query;
         
         if (!usuarioId) {
-            return res.status(400).json({ error: 'usuarioId es requerido' });
+            return res.status(400).json({ error: 'usuarioId is required' });
         }
 
         let query = `
@@ -3242,7 +3584,7 @@ app.get('/notificaciones/no-leidas', async (req, res) => {
         const { usuarioId } = req.query;
         
         if (!usuarioId) {
-            return res.status(400).json({ error: 'usuarioId es requerido' });
+            return res.status(400).json({ error: 'usuarioId is required' });
         }
 
         const [rows] = await pool.query(
@@ -3263,7 +3605,7 @@ app.put('/notificaciones/marcar-leida/:id', async (req, res) => {
         const { usuarioId } = req.body;
 
         if (!usuarioId) {
-            return res.status(400).json({ error: 'usuarioId es requerido' });
+            return res.status(400).json({ error: 'usuarioId is required' });
         }
 
         const [result] = await pool.query(
@@ -3274,11 +3616,11 @@ app.put('/notificaciones/marcar-leida/:id', async (req, res) => {
         );
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ error: 'Notificación no encontrada' });
+            return res.status(404).json({ error: 'Notification not found' });
         }
 
         io.emit('notificacionLeida', { id, usuarioId });
-        res.json({ success: true, message: 'Notificación marcada como leída' });
+        res.json({ success: true, message: 'Notification marked as read' });
     } catch (error) {
         console.error('Error marcando notificación como leída:', error);
         res.status(500).json({ error: 'Server error' });
@@ -3291,7 +3633,7 @@ app.put('/notificaciones/marcar-todas-leidas', async (req, res) => {
         const { usuarioId } = req.body;
 
         if (!usuarioId) {
-            return res.status(400).json({ error: 'usuarioId es requerido' });
+            return res.status(400).json({ error: 'usuarioId is required' });
         }
 
         await pool.query(
@@ -3302,7 +3644,7 @@ app.put('/notificaciones/marcar-todas-leidas', async (req, res) => {
         );
 
         io.emit('notificacionesTodasLeidas', { usuarioId });
-        res.json({ success: true, message: 'Todas las notificaciones marcadas como leídas' });
+        res.json({ success: true, message: 'All notifications marked as read' });
     } catch (error) {
         console.error('Error marcando todas como leídas:', error);
         res.status(500).json({ error: 'Server error' });
@@ -3315,7 +3657,7 @@ app.delete('/notificaciones/limpiar-leidas', async (req, res) => {
         const { usuarioId, diasAntiguedad } = req.query;
         
         if (!usuarioId) {
-            return res.status(400).json({ error: 'usuarioId es requerido' });
+            return res.status(400).json({ error: 'usuarioId is required' });
         }
 
         const dias = parseInt(diasAntiguedad) || 30;
@@ -3356,7 +3698,7 @@ app.post('/tiposMaterialInsert', async (req, res) => {
     try {
         const { TipoMaterial, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!TipoMaterial || !String(TipoMaterial).trim()) {
             return res.status(400).json({ error: 'TipoMaterial es requerido' });
@@ -3378,7 +3720,7 @@ app.delete('/tiposMaterialDelete/:id', async (req, res) => {
         const { id } = req.params;
         const { UsuarioId } = req.body || {};
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         const [uso] = await pool.query('SELECT COUNT(*) AS total FROM materiales WHERE TipoMaterialId = ?', [id]);
         if (uso[0].total > 0) {
@@ -3410,7 +3752,7 @@ app.post('/tiposHerramientaInsert', async (req, res) => {
     try {
         const { TipoHerramienta, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!TipoHerramienta || !String(TipoHerramienta).trim()) {
             return res.status(400).json({ error: 'TipoHerramienta es requerido' });
@@ -3432,7 +3774,7 @@ app.delete('/tiposHerramientaDelete/:id', async (req, res) => {
         const { id } = req.params;
         const { UsuarioId } = req.body || {};
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         const [uso] = await pool.query('SELECT COUNT(*) AS total FROM herramientas WHERE TipoHerramientaId = ?', [id]);
         if (uso[0].total > 0) {
@@ -3454,15 +3796,20 @@ app.delete('/tiposHerramientaDelete/:id', async (req, res) => {
 app.get('/materialesSelect', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            `SELECT m.IdMateriales, m.Material, m.Descripcion, m.Largo, m.Ancho,
-                    m.Cant, m.StockMinimo, m.TipoMaterialId, tm.TipoMaterial,
+            `SELECT m.IdMateriales, m.Material, m.Descripcion, m.Largo, m.Ancho, m.Alto,
+                    m.Cant, m.StockMinimo, m.LargoDisponible,
+                    m.TipoMaterialId, tm.TipoMaterial, COALESCE(tm.EsBarra, 0) AS EsBarra,
                     m.SubtipoMaterialId, sm.SubtipoMaterial
              FROM materiales m
              LEFT JOIN tipo_materiales tm ON tm.IdTipoMaterial = m.TipoMaterialId
              LEFT JOIN subtipo_material sm ON sm.IdSubtipoMaterial = m.SubtipoMaterialId
              ORDER BY m.Material`
         );
-        res.json(rows);
+        res.json(rows.map(r => ({
+            ...r,
+            EsBarra: Number(r.EsBarra) === 1,
+            LargoDisponible: r.LargoDisponible !== null ? Number(r.LargoDisponible) : null
+        })));
     } catch (error) {
         console.error('Error al obtener materiales:', error);
         res.status(500).json({ error: 'Server error' });
@@ -3471,9 +3818,9 @@ app.get('/materialesSelect', async (req, res) => {
 
 app.post('/materialesInsert', async (req, res) => {
     try {
-        const { Material, Descripcion, Largo, Ancho, Cant, StockMinimo, TipoMaterialId, SubtipoMaterialId, UsuarioId } = req.body;
+        const { Material, Descripcion, Largo, Ancho, Alto, Cant, StockMinimo, TipoMaterialId, SubtipoMaterialId, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!Material || !String(Material).trim()) {
             return res.status(400).json({ error: 'Material es requerido' });
@@ -3497,10 +3844,13 @@ app.post('/materialesInsert', async (req, res) => {
             }
             subtipoId = SubtipoMaterialId;
         }
+        const [tipoRow] = await pool.query('SELECT COALESCE(EsBarra, 0) AS EsBarra FROM tipo_materiales WHERE IdTipoMaterial = ?', [TipoMaterialId]);
+        const esBarraNuevo = tipoRow.length > 0 && Number(tipoRow[0].EsBarra) === 1;
         const [result] = await pool.query(
-            `INSERT INTO materiales (Material, Descripcion, Largo, Ancho, Cant, StockMinimo, TipoMaterialId, SubtipoMaterialId)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [String(Material).trim(), Descripcion || null, Largo || null, Ancho || null, cantidad, minimo, TipoMaterialId, subtipoId]
+            `INSERT INTO materiales (Material, Descripcion, Largo, Ancho, Alto, Cant, StockMinimo, TipoMaterialId, SubtipoMaterialId, LargoDisponible)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [String(Material).trim(), Descripcion || null, Largo || null, Ancho || null, Alto || null, cantidad, minimo, TipoMaterialId, subtipoId,
+             esBarraNuevo ? cantidad * 48 : null]
         );
         io.emit('inventarioActualizado');
         res.status(201).json({ message: 'Material creado', id: result.insertId });
@@ -3513,9 +3863,9 @@ app.post('/materialesInsert', async (req, res) => {
 app.put('/materialesUpdate/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { Material, Descripcion, Largo, Ancho, StockMinimo, TipoMaterialId, SubtipoMaterialId, UsuarioId } = req.body;
+        const { Material, Descripcion, Largo, Ancho, Alto, StockMinimo, TipoMaterialId, SubtipoMaterialId, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (SubtipoMaterialId !== undefined && SubtipoMaterialId !== null && SubtipoMaterialId !== '') {
             const tipoRef = TipoMaterialId !== undefined && TipoMaterialId !== ''
@@ -3536,6 +3886,7 @@ app.put('/materialesUpdate/:id', async (req, res) => {
         if (Descripcion !== undefined) { updates.push('Descripcion = ?'); values.push(Descripcion || null); }
         if (Largo !== undefined) { updates.push('Largo = ?'); values.push(Largo || null); }
         if (Ancho !== undefined) { updates.push('Ancho = ?'); values.push(Ancho || null); }
+        if (Alto !== undefined) { updates.push('Alto = ?'); values.push(Alto || null); }
         if (StockMinimo !== undefined) {
             const minimo = parseInt(StockMinimo, 10);
             if (isNaN(minimo) || minimo < 0) {
@@ -3549,7 +3900,7 @@ app.put('/materialesUpdate/:id', async (req, res) => {
             values.push(SubtipoMaterialId === '' || SubtipoMaterialId === null ? null : SubtipoMaterialId);
         }
         if (updates.length === 0) {
-            return res.status(400).json({ error: 'No hay campos para actualizar' });
+            return res.status(400).json({ error: 'No fields to update' });
         }
         values.push(id);
         const [result] = await pool.query(`UPDATE materiales SET ${updates.join(', ')} WHERE IdMateriales = ?`, values);
@@ -3569,7 +3920,7 @@ app.delete('/materialesDelete/:id', async (req, res) => {
         const { id } = req.params;
         const { UsuarioId } = req.body || {};
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         const [uso] = await pool.query(
             "SELECT COUNT(*) AS total FROM inventario_movimientos WHERE TipoItem = 'material' AND ReferenciaId = ?",
@@ -3611,7 +3962,7 @@ app.post('/herramientasInsert', async (req, res) => {
     try {
         const { Herramienta, TipoHerramientaId, Cant, Size, MaterialHerramienta, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!Herramienta || !String(Herramienta).trim()) {
             return res.status(400).json({ error: 'Herramienta es requerida' });
@@ -3641,7 +3992,7 @@ app.put('/herramientasUpdate/:id', async (req, res) => {
         const { id } = req.params;
         const { Herramienta, TipoHerramientaId, Size, MaterialHerramienta, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         // Nota: Cant NO se edita aquí; solo vía movimientos (entradas/salidas)
         const updates = [];
@@ -3651,7 +4002,7 @@ app.put('/herramientasUpdate/:id', async (req, res) => {
         if (Size !== undefined) { updates.push('Size = ?'); values.push(Size || null); }
         if (MaterialHerramienta !== undefined) { updates.push('MaterialHerramienta = ?'); values.push(MaterialHerramienta || null); }
         if (updates.length === 0) {
-            return res.status(400).json({ error: 'No hay campos para actualizar' });
+            return res.status(400).json({ error: 'No fields to update' });
         }
         values.push(id);
         const [result] = await pool.query(`UPDATE herramientas SET ${updates.join(', ')} WHERE IdHerramienta = ?`, values);
@@ -3671,7 +4022,7 @@ app.delete('/herramientasDelete/:id', async (req, res) => {
         const { id } = req.params;
         const { UsuarioId } = req.body || {};
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         const [uso] = await pool.query(
             "SELECT COUNT(*) AS total FROM inventario_movimientos WHERE TipoItem = 'herramienta' AND ReferenciaId = ?",
@@ -3702,7 +4053,7 @@ app.post('/inventarioMovimiento', async (req, res) => {
         if (!(await checkAdminInventario(UsuarioId))) {
             await connection.rollback();
             connection.release();
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!['material', 'herramienta'].includes(TipoItem)) {
             await connection.rollback();
@@ -3724,7 +4075,11 @@ app.post('/inventarioMovimiento', async (req, res) => {
         const tabla = TipoItem === 'material' ? 'materiales' : 'herramientas';
         const idCol = TipoItem === 'material' ? 'IdMateriales' : 'IdHerramienta';
         const [actual] = await connection.query(
-            `SELECT Cant FROM ${tabla} WHERE ${idCol} = ?`,
+            TipoItem === 'material'
+                ? `SELECT m.Cant, m.LargoDisponible, COALESCE(t.EsBarra, 0) AS EsBarra
+                   FROM materiales m LEFT JOIN tipo_materiales t ON t.IdTipoMaterial = m.TipoMaterialId
+                   WHERE m.IdMateriales = ?`
+                : `SELECT Cant, NULL AS LargoDisponible, 0 AS EsBarra FROM ${tabla} WHERE ${idCol} = ?`,
             [ReferenciaId]
         );
         if (actual.length === 0) {
@@ -3732,18 +4087,36 @@ app.post('/inventarioMovimiento', async (req, res) => {
             connection.release();
             return res.status(404).json({ error: 'Artículo no encontrado' });
         }
-        const existencia = Number(actual[0].Cant) || 0;
-        if (TipoMov === 'salida' && existencia < cantidad) {
-            await connection.rollback();
-            connection.release();
-            return res.status(400).json({ error: `Stock insuficiente. Existencia: ${existencia}` });
+        const esBarra = Number(actual[0].EsBarra) === 1;
+        const PULG_BARRA = 48;
+        let nuevaCant, nuevoLargo;
+        if (!esBarra) {
+            const existencia = Number(actual[0].Cant) || 0;
+            if (TipoMov === 'salida' && existencia < cantidad) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ error: `Stock insuficiente. Existencia: ${existencia}` });
+            }
+            nuevaCant = TipoMov === 'entrada' ? existencia + cantidad : existencia - cantidad;
+            await connection.query(
+                `UPDATE ${tabla} SET Cant = ? WHERE ${idCol} = ?`,
+                [nuevaCant, ReferenciaId]
+            );
+        } else {
+            // Barras: se mueven pulgadas; las barras se derivan (cada 48" = 1 barra)
+            const largoActual = Number(actual[0].LargoDisponible) || 0;
+            if (TipoMov === 'salida' && largoActual < cantidad * PULG_BARRA) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ error: `Pulgadas insuficientes. Disponible: ${largoActual}"` });
+            }
+            nuevoLargo = TipoMov === 'entrada' ? largoActual + cantidad * PULG_BARRA : largoActual - cantidad * PULG_BARRA;
+            nuevaCant = Math.ceil(nuevoLargo / PULG_BARRA);
+            await connection.query(
+                'UPDATE materiales SET Cant = ?, LargoDisponible = ? WHERE IdMateriales = ?',
+                [nuevaCant, nuevoLargo, ReferenciaId]
+            );
         }
-
-        const nuevaCant = TipoMov === 'entrada' ? existencia + cantidad : existencia - cantidad;
-        await connection.query(
-            `UPDATE ${tabla} SET Cant = ? WHERE ${idCol} = ?`,
-            [nuevaCant, ReferenciaId]
-        );
         await connection.query(
             `INSERT INTO inventario_movimientos (TipoItem, ReferenciaId, TipoMov, Cantidad, Fecha, UsuarioId, Comentario)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -3755,11 +4128,118 @@ app.post('/inventarioMovimiento', async (req, res) => {
 
         io.emit('inventarioActualizado');
 
-        res.status(201).json({ success: true, message: 'Movimiento registrado', nuevaExistencia: nuevaCant });
+        res.status(201).json({
+            success: true,
+            message: 'Movimiento registrado',
+            nuevaExistencia: nuevaCant,
+            ...(esBarra ? { largoDisponible: nuevoLargo } : {})
+        });
     } catch (error) {
         await connection.rollback();
         connection.release();
         console.error('Error al registrar movimiento:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Borrar un movimiento revirtiendo su efecto en stock (para poder eliminar
+// el material después). Si revertirlo dejaría stock negativo, se rechaza.
+app.delete('/inventarioMovimiento/:id', async (req, res) => {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+        const { id } = req.params;
+        const { UsuarioId } = req.body || {};
+        if (!(await checkAdminInventario(UsuarioId))) {
+            await connection.rollback();
+            connection.release();
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        const [rows] = await connection.query(
+            'SELECT * FROM inventario_movimientos WHERE IdMovimiento = ?',
+            [id]
+        );
+        if (rows.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ error: 'Movimiento no encontrado' });
+        }
+        const mov = rows[0];
+        if (mov.TipoItem === 'material') {
+            const [mats] = await connection.query(
+                `SELECT m.Cant, m.LargoDisponible, COALESCE(t.EsBarra, 0) AS EsBarra
+                 FROM materiales m LEFT JOIN tipo_materiales t ON t.IdTipoMaterial = m.TipoMaterialId
+                 WHERE m.IdMateriales = ?`,
+                [mov.ReferenciaId]
+            );
+            if (mats.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(404).json({ error: 'El material ya no existe' });
+            }
+            const esBarra = Number(mats[0].EsBarra) === 1;
+            if (esBarra) {
+                // Revertir pulgadas según el tipo original del movimiento
+                let delta = 0;
+                if (mov.TipoMov === 'entrada') delta = -(Number(mov.Cantidad) * 48);
+                else if (mov.TipoMov === 'salida') delta = Number(mov.Cantidad) * 48;
+                else if (mov.TipoMov === 'consumo') delta = Number(mov.Largo) || 0;
+                else delta = 0;
+                const nuevoLargo = Math.round(((Number(mats[0].LargoDisponible) || 0) + delta) * 100) / 100;
+                if (nuevoLargo < 0) {
+                    await connection.rollback();
+                    connection.release();
+                    return res.status(400).json({ error: 'No se puede borrar: dejaría las pulgadas en negativo' });
+                }
+                await connection.query(
+                    'UPDATE materiales SET Cant = ?, LargoDisponible = ? WHERE IdMateriales = ?',
+                    [Math.ceil(nuevoLargo / 48), nuevoLargo, mov.ReferenciaId]
+                );
+            } else {
+                const c = Number(mov.Cantidad) || 0;
+                const actual = Number(mats[0].Cant) || 0;
+                const nuevo = mov.TipoMov === 'entrada' ? actual - c : actual + c;
+                if (nuevo < 0) {
+                    await connection.rollback();
+                    connection.release();
+                    return res.status(400).json({ error: 'No se puede borrar: dejaría la existencia en negativo' });
+                }
+                await connection.query('UPDATE materiales SET Cant = ? WHERE IdMateriales = ?', [nuevo, mov.ReferenciaId]);
+            }
+        } else if (mov.TipoItem === 'herramienta') {
+            const [herr] = await connection.query('SELECT Cant FROM herramientas WHERE IdHerramienta = ?', [mov.ReferenciaId]);
+            if (herr.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(404).json({ error: 'La herramienta ya no existe' });
+            }
+            const c = Number(mov.Cantidad) || 0;
+            const actual = Number(herr[0].Cant) || 0;
+            const nuevo = mov.TipoMov === 'entrada' ? actual - c : actual + c;
+            if (nuevo < 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ error: 'No se puede borrar: dejaría la existencia en negativo' });
+            }
+            await connection.query('UPDATE herramientas SET Cant = ? WHERE IdHerramienta = ?', [nuevo, mov.ReferenciaId]);
+        } else if (mov.TipoItem === 'bloque') {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'Los movimientos de blocks no se pueden borrar (usan su propio kardex)' });
+        } else {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'Tipo de movimiento no soportado para borrado' });
+        }
+        await connection.query('DELETE FROM inventario_movimientos WHERE IdMovimiento = ?', [id]);
+        await connection.commit();
+        connection.release();
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: 'Movimiento eliminado y stock revertido' });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error al eliminar movimiento:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -3769,6 +4249,7 @@ app.get('/inventarioMovimientos', async (req, res) => {
         const { tipoItem, referenciaId, limite } = req.query;
         let query = `
             SELECT m.IdMovimiento, m.TipoItem, m.ReferenciaId, m.TipoMov, m.Cantidad,
+                   m.Largo, m.Ancho, m.Alto,
                    m.Fecha, DATE_FORMAT(m.Fecha, '%d/%m/%Y %H:%i') AS FechaFormateada,
                    m.UsuarioId, m.Comentario, u.Nombre AS UsuarioNombre
             FROM inventario_movimientos m
@@ -3821,7 +4302,7 @@ app.post('/subtiposMaterialInsert', async (req, res) => {
     try {
         const { TipoMaterialId, SubtipoMaterial, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!TipoMaterialId) {
             return res.status(400).json({ error: 'TipoMaterialId es requerido' });
@@ -3846,7 +4327,7 @@ app.delete('/subtiposMaterialDelete/:id', async (req, res) => {
         const { id } = req.params;
         const { UsuarioId } = req.body || {};
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         const [uso] = await pool.query('SELECT COUNT(*) AS total FROM materiales WHERE SubtipoMaterialId = ?', [id]);
         if (uso[0].total > 0) {
@@ -3870,7 +4351,7 @@ app.put('/tiposMaterialUpdate/:id', async (req, res) => {
         const { id } = req.params;
         const { TipoMaterial, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!TipoMaterial || !String(TipoMaterial).trim()) {
             return res.status(400).json({ error: 'TipoMaterial es requerido' });
@@ -3895,7 +4376,7 @@ app.put('/tiposHerramientaUpdate/:id', async (req, res) => {
         const { id } = req.params;
         const { TipoHerramienta, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!TipoHerramienta || !String(TipoHerramienta).trim()) {
             return res.status(400).json({ error: 'TipoHerramienta es requerido' });
@@ -3920,7 +4401,7 @@ app.put('/subtiposMaterialUpdate/:id', async (req, res) => {
         const { id } = req.params;
         const { SubtipoMaterial, UsuarioId } = req.body;
         if (!(await checkAdminInventario(UsuarioId))) {
-            return res.status(403).json({ error: 'Solo administradores' });
+            return res.status(403).json({ error: 'Only administrators' });
         }
         if (!SubtipoMaterial || !String(SubtipoMaterial).trim()) {
             return res.status(400).json({ error: 'SubtipoMaterial es requerido' });
@@ -3940,6 +4421,571 @@ app.put('/subtiposMaterialUpdate/:id', async (req, res) => {
     }
 });
 
+/*---------------------------------------------------BLOQUES: INVENTARIO (existencias y apartados)---------------------------------------------------*/
+// Helpers de apartados. q() es pool.query o connection.query según haya transacción.
+// - liberar: papelera → los apartados vuelven a disponible (kardex 'liberacion').
+// - consumir: entrega → las piezas salen físicamente (kardex 'consumo').
+const liberarApartadosTicket = async (q, ticketId, usuarioId) => {
+    const [aps] = await q(
+        'SELECT BloqueId, Cantidad FROM bloque_apartados WHERE TicketId = ?',
+        [ticketId]
+    );
+    if (aps.length === 0) return 0;
+    const fecha = getHermosilloDateTime();
+    for (const a of aps) {
+        await q(
+            `INSERT INTO bloque_movimientos (BloqueNoParte, TipoMov, Cantidad, TicketId, Fecha, UsuarioId, Comentario)
+             VALUES (?, 'liberacion', ?, ?, ?, ?, ?)`,
+            [a.BloqueId, a.Cantidad, ticketId, fecha, usuarioId, 'Apartado liberado (papelera)']
+        );
+    }
+    await q('DELETE FROM bloque_apartados WHERE TicketId = ?', [ticketId]);
+    return aps.length;
+};
+
+const consumirApartadosTicket = async (q, ticketId, usuarioId) => {
+    const [aps] = await q(
+        'SELECT BloqueId, Cantidad FROM bloque_apartados WHERE TicketId = ?',
+        [ticketId]
+    );
+    if (aps.length === 0) return 0;
+    const fecha = getHermosilloDateTime();
+    for (const a of aps) {
+        await q(
+            `INSERT INTO bloque_movimientos (BloqueNoParte, TipoMov, Cantidad, TicketId, Fecha, UsuarioId, Comentario)
+             VALUES (?, 'consumo', ?, ?, ?, ?, ?)`,
+            [a.BloqueId, a.Cantidad, ticketId, fecha, usuarioId, 'Consumo por entrega del ticket']
+        );
+    }
+    await q('DELETE FROM bloque_apartados WHERE TicketId = ?', [ticketId]);
+    return aps.length;
+};
+
+// Disponibilidad de un bloque: Existencia menos lo ya apartado (tickets activos)
+const disponibleBloque = async (q, noParte) => {
+    const [b] = await q('SELECT Existencia FROM bloques WHERE NoParte = ?', [noParte]);
+    if (b.length === 0) return { existe: false, existencia: 0, apartado: 0, disponible: 0 };
+    const [a] = await q(
+        `SELECT COALESCE(SUM(ap.Cantidad), 0) AS apartado
+         FROM bloque_apartados ap
+         JOIN tickets t ON t.IdTicket = ap.TicketId
+         WHERE ap.BloqueId = ? AND t.Activo = 1`,
+        [noParte]
+    );
+    const existencia = Number(b[0].Existencia) || 0;
+    const apartado = Number(a[0].apartado) || 0;
+    return { existe: true, existencia, apartado, disponible: existencia - apartado };
+};
+
+// Reparte el disponible de un bloque entre tickets activos elegibles,
+// por prioridad (CRITICA > ALTA > MEDIA > BAJA) y fecha deseada.
+// Devuelve { apartados, tickets } con los tickets cubiertos.
+const repartirBloque = async (q, noParte, usuarioId, fecha) => {
+    const [tickets] = await q(
+        `SELECT t.IdTicket, td.Cantidad,
+                (SELECT COALESCE(SUM(ap2.Cantidad), 0) FROM bloque_apartados ap2
+                 WHERE ap2.TicketId = t.IdTicket AND ap2.BloqueId = td.BloqueId) AS ya
+         FROM tickets_details td
+         JOIN tickets t ON t.IdTicket = td.TicketId
+         LEFT JOIN estados e ON e.IdEstado = t.EstadoId
+         LEFT JOIN prioridades p ON p.IdPrioridad = t.PrioridadId
+         WHERE td.BloqueId = ? AND t.Activo = 1
+           AND (e.NombreEstado IS NULL OR e.NombreEstado NOT IN ('COMPLETO', 'ENTREGADO'))
+         ORDER BY p.IdPrioridad DESC, t.FechaDeseada ASC`,
+        [noParte]
+    );
+    let apartados = 0;
+    const ticketsTocados = new Set();
+    for (const tk of tickets) {
+        const faltante = Number(tk.Cantidad) - Number(tk.ya);
+        if (faltante <= 0) continue;
+        const disp = await disponibleBloque(q, noParte);
+        if (!disp.existe || disp.disponible <= 0) break;
+        const qty = Math.min(faltante, disp.disponible);
+        const [existeAp] = await q(
+            'SELECT IdApartado FROM bloque_apartados WHERE TicketId = ? AND BloqueId = ? LIMIT 1',
+            [tk.IdTicket, noParte]
+        );
+        if (existeAp.length > 0) {
+            await q('UPDATE bloque_apartados SET Cantidad = Cantidad + ? WHERE IdApartado = ?',
+                [qty, existeAp[0].IdApartado]);
+        } else {
+            await q('INSERT INTO bloque_apartados (TicketId, BloqueId, Cantidad) VALUES (?, ?, ?)',
+                [tk.IdTicket, noParte, qty]);
+        }
+        await q(
+            `INSERT INTO bloque_movimientos (BloqueNoParte, TipoMov, Cantidad, TicketId, Fecha, UsuarioId, Comentario)
+             VALUES (?, 'apartado', ?, ?, ?, ?, ?)`,
+            [noParte, qty, tk.IdTicket, fecha, usuarioId, `Apartado automático para ticket #${tk.IdTicket}`]
+        );
+        apartados += qty;
+        ticketsTocados.add(tk.IdTicket);
+    }
+    return { apartados, tickets: [...ticketsTocados] };
+};
+
+// Puerta de entrada al inventario + descuento al dar de alta N blocks.
+// Pines/piezas descuentan Cantidad; barras solo mueven LARGO.
+// Si no alcanza: descuenta lo disponible y avisa (no bloquea).
+const validarBloqueListoParaAlta = async (q, noParte) => {
+    const faltantes = [];
+    const [b] = await q('SELECT DibujosCompleto, ProgramasCompleto, EnsambleCompleto FROM bloques WHERE NoParte = ?', [noParte]);
+    if (b.length === 0) return { ok: false, faltantes: ['el bloque no existe'] };
+    if (Number(b[0].DibujosCompleto) !== 1) faltantes.push(`dibujos sin marcar completos`);
+    if (Number(b[0].ProgramasCompleto) !== 1) faltantes.push(`programas sin marcar completos`);
+    if (Number(b[0].EnsambleCompleto) !== 1) faltantes.push(`ensamble sin completar`);
+    const [progs] = await q(
+        `SELECT p.IdPrograma FROM programas p` +
+        ` LEFT JOIN dibujos_bloques d ON d.IdDibujo = p.DibujoId` +
+        ` WHERE p.BloqueId = ? OR d.BloqueId = ?`,
+        [noParte, noParte]
+    );
+    if (progs.length === 0) {
+        faltantes.push('sin programas dados de alta');
+    } else {
+        let sinReceta = 0;
+        for (const pr of progs) {
+            const [c] = await q('SELECT COUNT(*) AS n FROM programa_materiales WHERE ProgramaId = ?', [pr.IdPrograma]);
+            if (!c[0].n) sinReceta++;
+        }
+        if (sinReceta > 0) faltantes.push(`${sinReceta} programa(s) sin material asignado`);
+    }
+    return { ok: faltantes.length === 0, faltantes };
+};
+
+// Descuento al dar de alta N blocks: receta x N (pines descuentan Cantidad,
+// barras solo mueven LARGO). Si no alcanza: descuenta lo disponible y avisa.
+const consumirRecetasBloque = async (q, noParte, qtyBlocks, usuarioId, fecha) => {
+    const [recetas] = await q(
+        `SELECT pm.ProgramaId, pm.MaterialId, pm.Cantidad, pm.Largo,` +
+        ` m.Material, m.Cant AS existencia, m.LargoDisponible,` +
+        ` COALESCE(t.EsBarra, 0) AS EsBarra` +
+        ` FROM programa_materiales pm` +
+        ` JOIN programas p ON p.IdPrograma = pm.ProgramaId` +
+        ` LEFT JOIN dibujos_bloques d ON d.IdDibujo = p.DibujoId` +
+        ` LEFT JOIN materiales m ON m.IdMateriales = pm.MaterialId` +
+        ` LEFT JOIN tipo_materiales t ON t.IdTipoMaterial = m.TipoMaterialId` +
+        ` WHERE p.BloqueId = ? OR d.BloqueId = ?`,
+        [noParte, noParte]
+    );
+    const r2 = (n) => Math.round(Number(n) * 100) / 100;
+    const avisos = [];
+    let consumos = 0;
+    for (const r of recetas) {
+        const need = Number(r.Cantidad) * qtyBlocks;
+        const esBarra = Number(r.EsBarra) === 1;
+        if (esBarra) {
+            const needPulg = r2((Number(r.Largo) || 0) * qtyBlocks);
+            const dispPulg = Number(r.LargoDisponible) || 0;
+            const usaPulg = Math.min(needPulg, dispPulg);
+            const nuevoLargo = r2(dispPulg - usaPulg);
+            await q('UPDATE materiales SET Cant = ?, LargoDisponible = ? WHERE IdMateriales = ?',
+                [Math.ceil(nuevoLargo / 48), nuevoLargo, r.MaterialId]);
+            await q(
+                `INSERT INTO inventario_movimientos (TipoItem, ReferenciaId, TipoMov, Cantidad, Largo, Ancho, Alto, Fecha, UsuarioId, Comentario, BloqueNoParte, ProgramaId) VALUES ('material', ?, 'consumo', 0, ?, NULL, NULL, ?, ?, ?, ?, ?)`,
+                [r.MaterialId, usaPulg, fecha, usuarioId,
+                 `Consumo alta ${qtyBlocks}x ${noParte}: largo ${usaPulg} de ${needPulg} (receta prog. #${r.ProgramaId})${usaPulg < needPulg ? ' · parcial: sin stock' : ''}`,
+                 noParte, r.ProgramaId]
+            );
+            consumos++;
+            if (usaPulg < needPulg) avisos.push(`${r.Material || 'Material #' + r.MaterialId}: receta pide ${needPulg} pulg y había ${dispPulg} pulg`);
+        } else {
+            const avail = Number(r.existencia) || 0;
+            const usa = Math.min(need, avail);
+            if (usa > 0) {
+                await q('UPDATE materiales SET Cant = Cant - ? WHERE IdMateriales = ?', [usa, r.MaterialId]);
+            }
+            await q(
+                `INSERT INTO inventario_movimientos (TipoItem, ReferenciaId, TipoMov, Cantidad, Largo, Ancho, Alto, Fecha, UsuarioId, Comentario, BloqueNoParte, ProgramaId) VALUES ('material', ?, 'consumo', ?, NULL, NULL, NULL, ?, ?, ?, ?, ?)`,
+                [r.MaterialId, usa, fecha, usuarioId,
+                 `Consumo alta ${qtyBlocks}x ${noParte} (receta prog. #${r.ProgramaId})${usa < need ? ' · parcial: sin stock' : ''}`,
+                 noParte, r.ProgramaId]
+            );
+            consumos++;
+            if (usa < need) avisos.push(`${r.Material || 'Material #' + r.MaterialId}: receta pide ${need}, había ${avail}`);
+        }
+    }
+    return { consumos, avisos };
+};
+
+
+// Entrada manual a stock (piezas maquinadas/armadas listas)
+app.post('/bloquesEntrada', async (req, res) => {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+        const { BloqueNoParte, Cantidad, UsuarioId, Comentario } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            await connection.rollback();
+            connection.release();
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        const cantidad = parseInt(Cantidad, 10);
+        if (!BloqueNoParte || isNaN(cantidad) || cantidad <= 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'BloqueNoParte y Cantidad > 0 son requeridos' });
+        }
+        const [b] = await connection.query('SELECT NoParte FROM bloques WHERE NoParte = ?', [BloqueNoParte]);
+        if (b.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ error: 'Block not found' });
+        }
+        // Puerta de entrada: solo blocks listos (dibujos+programa+ensamble y material en programa)
+        const listo = await validarBloqueListoParaAlta((sql, params) => connection.query(sql, params), BloqueNoParte);
+        if (!listo.ok) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'No se puede dar de alta: le falta ' + listo.faltantes.join(', ') });
+        }
+
+        await connection.query(
+            'UPDATE bloques SET Existencia = Existencia + ? WHERE NoParte = ?',
+            [cantidad, BloqueNoParte]
+        );
+        const fechaEnt = getHermosilloDateTime();
+        await connection.query(
+            `INSERT INTO bloque_movimientos (BloqueNoParte, TipoMov, Cantidad, TicketId, Fecha, UsuarioId, Comentario)
+             VALUES (?, 'entrada', ?, NULL, ?, ?, ?)`,
+            [BloqueNoParte, cantidad, fechaEnt, UsuarioId, Comentario || 'Entrada manual a stock']
+        );
+        // Descuento de material: receta x blocks dados de alta en este momento
+        const resConsumoEnt = await consumirRecetasBloque((sql, params) => connection.query(sql, params), BloqueNoParte, cantidad, UsuarioId, fechaEnt);
+                // Auto-apartado: asignar lo que entró a tickets pendientes por prioridad
+        const qConn = (sql, params) => connection.query(sql, params);
+        const auto = await repartirBloque(qConn, BloqueNoParte, UsuarioId, fechaEnt);
+        await connection.commit();
+        connection.release();
+        io.emit('bloqueInventarioActualizado', { noParte: BloqueNoParte });
+        io.emit('inventarioActualizado');
+        io.emit('ticketsActualizados');
+        auto.tickets.forEach(ticketId => io.emit('ticketEstadoActualizado', { ticketId }));
+        const partesMsgEnt = [
+            `Entrada registrada (${cantidad}x ${BloqueNoParte})`,
+        ];
+        if (resConsumoEnt.consumos > 0) partesMsgEnt.push(`material descontado en ${resConsumoEnt.consumos} receta(s)`);
+        if (auto.apartados > 0) partesMsgEnt.push(`${auto.apartados} pieza(s) apartadas`);
+        res.status(201).json({
+            success: true,
+            message: partesMsgEnt.join(` · `),
+            apartados: auto.apartados,
+            consumos: resConsumoEnt.consumos,
+            warning: resConsumoEnt.avisos.length > 0 ? 'Sin stock suficiente: ' + resConsumoEnt.avisos.join(' · ') : null
+        });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error en entrada de bloque:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Salida manual (merma, venta, ajuste)
+app.post('/bloquesSalida', async (req, res) => {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+        const { BloqueNoParte, Cantidad, UsuarioId, Comentario } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            await connection.rollback();
+            connection.release();
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        const cantidad = parseInt(Cantidad, 10);
+        if (!BloqueNoParte || isNaN(cantidad) || cantidad <= 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'BloqueNoParte y Cantidad > 0 son requeridos' });
+        }
+        const disp = await disponibleBloque(connection.query.bind(connection), BloqueNoParte);
+        if (!disp.existe) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ error: 'Block not found' });
+        }
+        if (disp.disponible < cantidad) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: `Stock disponible insuficiente. Disponible: ${disp.disponible}` });
+        }
+        await connection.query(
+            'UPDATE bloques SET Existencia = Existencia - ? WHERE NoParte = ?',
+            [cantidad, BloqueNoParte]
+        );
+        await connection.query(
+            `INSERT INTO bloque_movimientos (BloqueNoParte, TipoMov, Cantidad, TicketId, Fecha, UsuarioId, Comentario)
+             VALUES (?, 'salida', ?, NULL, ?, ?, ?)`,
+            [BloqueNoParte, cantidad, getHermosilloDateTime(), UsuarioId, Comentario || 'Salida manual']
+        );
+        await connection.commit();
+        connection.release();
+        io.emit('bloqueInventarioActualizado', { noParte: BloqueNoParte });
+        io.emit('inventarioActualizado');
+        res.status(201).json({ success: true, message: 'Salida registrada' });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error en salida de bloque:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Devolver piezas apartadas al inventario (vuelven a disponible).
+// Body: { TicketId, BloqueNoParte, Cantidad, UsuarioId, Comentario }
+app.post('/bloquesDevolver', async (req, res) => {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+        const { TicketId, BloqueNoParte, Cantidad, UsuarioId, Comentario } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            await connection.rollback();
+            connection.release();
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        const cantidad = parseInt(Cantidad, 10);
+        if (!TicketId || !BloqueNoParte || isNaN(cantidad) || cantidad <= 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'TicketId, BloqueNoParte y Cantidad > 0 son requeridos' });
+        }
+        const [aps] = await connection.query(
+            'SELECT IdApartado, Cantidad FROM bloque_apartados WHERE TicketId = ? AND BloqueId = ? LIMIT 1',
+            [TicketId, BloqueNoParte]
+        );
+        if (aps.length === 0 || Number(aps[0].Cantidad) < cantidad) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({
+                error: `Apartado insuficiente. Apartado actual: ${aps.length > 0 ? aps[0].Cantidad : 0}`
+            });
+        }
+        const restante = Number(aps[0].Cantidad) - cantidad;
+        if (restante === 0) {
+            await connection.query('DELETE FROM bloque_apartados WHERE IdApartado = ?', [aps[0].IdApartado]);
+        } else {
+            await connection.query('UPDATE bloque_apartados SET Cantidad = ? WHERE IdApartado = ?', [restante, aps[0].IdApartado]);
+        }
+        await connection.query(
+            `INSERT INTO bloque_movimientos (BloqueNoParte, TipoMov, Cantidad, TicketId, Fecha, UsuarioId, Comentario)
+             VALUES (?, 'liberacion', ?, ?, ?, ?, ?)`,
+            [BloqueNoParte, cantidad, TicketId, getHermosilloDateTime(), UsuarioId, Comentario || `Devolución manual del ticket #${TicketId}`]
+        );
+        await connection.commit();
+        connection.release();
+        io.emit('bloqueInventarioActualizado', { noParte: BloqueNoParte });
+        io.emit('ticketsActualizados');
+        io.emit('ticketEstadoActualizado', { ticketId: TicketId });
+        res.json({ success: true, message: `Se devolvieron ${cantidad} pieza(s) al inventario` });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error al devolver bloques:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Distribución de apartados de un bloque por ticket (para la UI de devolución)
+app.get('/bloqueApartados', async (req, res) => {
+    try {
+        const { noParte } = req.query;
+        if (!noParte) {
+            return res.status(400).json({ error: 'noParte es requerido' });
+        }
+        const [rows] = await pool.query(
+            `SELECT ap.TicketId, ap.BloqueId, ap.Cantidad AS Apartado,
+                    td.Cantidad AS Requerido,
+                    t.SolicitanteId, u.Nombre AS SolicitanteNombre,
+                    p.Prioridad AS PrioridadNombre, p.IdPrioridad,
+                    e.NombreEstado
+             FROM bloque_apartados ap
+             JOIN tickets t ON t.IdTicket = ap.TicketId
+             LEFT JOIN tickets_details td ON td.TicketId = ap.TicketId AND td.BloqueId = ap.BloqueId
+             LEFT JOIN usuarios u ON u.NoEmpleado = t.SolicitanteId
+             LEFT JOIN prioridades p ON p.IdPrioridad = t.PrioridadId
+             LEFT JOIN estados e ON e.IdEstado = t.EstadoId
+             WHERE ap.BloqueId = ? AND t.Activo = 1
+             ORDER BY p.IdPrioridad DESC, t.FechaDeseada ASC`,
+            [noParte]
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener apartados:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Apartar piezas para tickets, repartiendo por prioridad:
+// CRITICA (4) > ALTA (3) > MEDIA (2) > BAJA (1), luego fecha deseada.
+// Si se pasa TicketId, solo se cubre ese ticket (sin quitar lo ya apartado).
+app.post('/bloquesApartar', async (req, res) => {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+        const { TicketId, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            await connection.rollback();
+            connection.release();
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        let tickets;
+        if (TicketId) {
+            const [t] = await connection.query(
+                `SELECT t.IdTicket FROM tickets t
+                 LEFT JOIN estados e ON e.IdEstado = t.EstadoId
+                 WHERE t.IdTicket = ? AND t.Activo = 1
+                 AND (e.NombreEstado IS NULL OR e.NombreEstado NOT IN ('COMPLETO', 'ENTREGADO'))`,
+                [TicketId]
+            );
+            if (t.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(404).json({ error: 'Ticket no elegible para apartado' });
+            }
+            tickets = t;
+        } else {
+            const [t] = await connection.query(
+                `SELECT t.IdTicket FROM tickets t
+                 LEFT JOIN estados e ON e.IdEstado = t.EstadoId
+                 LEFT JOIN prioridades p ON p.IdPrioridad = t.PrioridadId
+                 WHERE t.Activo = 1
+                 AND (e.NombreEstado IS NULL OR e.NombreEstado NOT IN ('COMPLETO', 'ENTREGADO'))
+                 ORDER BY p.IdPrioridad DESC, t.FechaDeseada ASC`
+            );
+            tickets = t;
+        }
+        const fecha = getHermosilloDateTime();
+        let apartados = 0;
+        const bloquesTocados = new Set();
+        for (const tk of tickets) {
+            const [dets] = await connection.query(
+                'SELECT BloqueId, Cantidad FROM tickets_details WHERE TicketId = ?',
+                [tk.IdTicket]
+            );
+            for (const d of dets) {
+                const [ya] = await connection.query(
+                    'SELECT COALESCE(SUM(Cantidad), 0) AS s FROM bloque_apartados WHERE TicketId = ? AND BloqueId = ?',
+                    [tk.IdTicket, d.BloqueId]
+                );
+                const faltante = Number(d.Cantidad) - Number(ya[0].s);
+                if (faltante <= 0) continue;
+                const disp = await disponibleBloque(connection.query.bind(connection), d.BloqueId);
+                if (!disp.existe || disp.disponible <= 0) continue;
+                const qty = Math.min(faltante, disp.disponible);
+                const [existeAp] = await connection.query(
+                    'SELECT IdApartado FROM bloque_apartados WHERE TicketId = ? AND BloqueId = ? LIMIT 1',
+                    [tk.IdTicket, d.BloqueId]
+                );
+                if (existeAp.length > 0) {
+                    await connection.query(
+                        'UPDATE bloque_apartados SET Cantidad = Cantidad + ? WHERE IdApartado = ?',
+                        [qty, existeAp[0].IdApartado]
+                    );
+                } else {
+                    await connection.query(
+                        'INSERT INTO bloque_apartados (TicketId, BloqueId, Cantidad) VALUES (?, ?, ?)',
+                        [tk.IdTicket, d.BloqueId, qty]
+                    );
+                }
+                await connection.query(
+                    `INSERT INTO bloque_movimientos (BloqueNoParte, TipoMov, Cantidad, TicketId, Fecha, UsuarioId, Comentario)
+                     VALUES (?, 'apartado', ?, ?, ?, ?, ?)`,
+                    [d.BloqueId, qty, tk.IdTicket, fecha, UsuarioId, `Apartado para ticket #${tk.IdTicket}`]
+                );
+                apartados += qty;
+                bloquesTocados.add(d.BloqueId);
+            }
+        }
+        await connection.commit();
+        connection.release();
+        bloquesTocados.forEach(noParte => io.emit('bloqueInventarioActualizado', { noParte }));
+        io.emit('ticketsActualizados');
+        io.emit('inventarioActualizado');
+        res.json({ success: true, message: apartados > 0 ? `Se apartaron ${apartados} pieza(s)` : 'Sin disponibilidad para apartar', apartados });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error al apartar bloques:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Estado de inventario por bloque: Existencia, Apartado, Disponible, Requerido, Faltante
+app.get('/bloquesInventario', async (req, res) => {
+    try {
+        const { noParte } = req.query;
+        let bloques;
+        if (noParte) {
+            const [b] = await pool.query('SELECT NoParte, Existencia FROM bloques WHERE NoParte = ?', [noParte]);
+            bloques = b;
+        } else {
+            const [b] = await pool.query('SELECT NoParte, Existencia FROM bloques ORDER BY NoParte');
+            bloques = b;
+        }
+        const out = [];
+        for (const bl of bloques) {
+            const [ap] = await pool.query(
+                `SELECT COALESCE(SUM(ap.Cantidad), 0) AS apartado
+                 FROM bloque_apartados ap
+                 JOIN tickets t ON t.IdTicket = ap.TicketId
+                 WHERE ap.BloqueId = ? AND t.Activo = 1`,
+                [bl.NoParte]
+            );
+            const [req2] = await pool.query(
+                `SELECT COALESCE(SUM(td.Cantidad), 0) AS requerido
+                 FROM tickets_details td
+                 JOIN tickets t ON t.IdTicket = td.TicketId
+                 LEFT JOIN estados e ON e.IdEstado = t.EstadoId
+                 WHERE td.BloqueId = ? AND t.Activo = 1
+                 AND (e.NombreEstado IS NULL OR e.NombreEstado NOT IN ('COMPLETO', 'ENTREGADO'))`,
+                [bl.NoParte]
+            );
+            const existencia = Number(bl.Existencia) || 0;
+            const apartado = Number(ap[0].apartado) || 0;
+            const requerido = Number(req2[0].requerido) || 0;
+            out.push({
+                NoParte: bl.NoParte,
+                Existencia: existencia,
+                Apartado: apartado,
+                Disponible: existencia - apartado,
+                Requerido: requerido,
+                Faltante: Math.max(0, requerido - apartado)
+            });
+        }
+        res.json(noParte ? (out[0] || null) : out);
+    } catch (error) {
+        console.error('Error al obtener inventario de bloques:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Kardex de un bloque
+app.get('/bloqueMovimientos', async (req, res) => {
+    try {
+        const { noParte, limite } = req.query;
+        if (!noParte) {
+            return res.status(400).json({ error: 'noParte es requerido' });
+        }
+        let query = `
+            SELECT m.IdMovimiento, m.BloqueNoParte, m.TipoMov, m.Cantidad, m.TicketId,
+                   m.Fecha, DATE_FORMAT(m.Fecha, '%d/%m/%Y %H:%i') AS FechaFormateada,
+                   m.UsuarioId, m.Comentario, u.Nombre AS UsuarioNombre
+            FROM bloque_movimientos m
+            LEFT JOIN usuarios u ON u.NoEmpleado = m.UsuarioId
+            WHERE m.BloqueNoParte = ?
+            ORDER BY m.Fecha DESC, m.IdMovimiento DESC`;
+        const lim = parseInt(limite, 10);
+        if (!isNaN(lim) && lim > 0 && lim <= 500) {
+            query += ` LIMIT ${lim}`;
+        }
+        const [rows] = await pool.query(query, [noParte]);
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener movimientos de bloque:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 /*---------------------------------------------------DEMANDA DE BLOCKS (solo lectura, agregada)---------------------------------------------------*/
 app.get('/inventarioDemandaBlocks', async (req, res) => {
     try {
@@ -3949,7 +4995,13 @@ app.get('/inventarioDemandaBlocks', async (req, res) => {
                     COUNT(DISTINCT td.TicketId) AS Tickets,
                     MAX(b.DibujosCompleto) AS DibujosCompleto,
                     MAX(b.ProgramasCompleto) AS ProgramasCompleto,
-                    MAX(b.EnsambleCompleto) AS EnsambleCompleto
+                    MAX(b.EnsambleCompleto) AS EnsambleCompleto,
+                    COALESCE(MAX(b.Existencia), 0) AS Existencia,
+                    COALESCE((
+                        SELECT SUM(ap.Cantidad) FROM bloque_apartados ap
+                        JOIN tickets t2 ON t2.IdTicket = ap.TicketId
+                        WHERE ap.BloqueId = td.BloqueId AND t2.Activo = 1
+                    ), 0) AS Apartado
              FROM tickets_details td
              JOIN tickets t ON t.IdTicket = td.TicketId
              LEFT JOIN estados e ON e.IdEstado = t.EstadoId
@@ -3959,13 +5011,411 @@ app.get('/inventarioDemandaBlocks', async (req, res) => {
              GROUP BY td.BloqueId
              ORDER BY Requerido DESC`
         );
-        res.json(rows.map(r => ({
-            ...r,
-            Requerido: Number(r.Requerido),
-            Tickets: Number(r.Tickets)
-        })));
+        res.json(rows.map(r => {
+            const requerido = Number(r.Requerido);
+            const apartado = Number(r.Apartado);
+            const existencia = Number(r.Existencia);
+            return {
+                ...r,
+                Requerido: requerido,
+                Tickets: Number(r.Tickets),
+                Existencia: existencia,
+                Apartado: apartado,
+                Disponible: existencia - apartado,
+                Faltante: Math.max(0, requerido - apartado)
+            };
+        }));
     } catch (error) {
         console.error('Error al obtener demanda de blocks:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+/*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!PROGRAMA-MATERIAL / PIN-FUNDA!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*/
+// Receta informativa programa → materiales (NO descuenta stock; el descuento
+// solo ocurre en la Entrada del block). Si no hay stock, avisa sin bloquear.
+
+app.get('/programaMateriales', async (req, res) => {
+    try {
+        const { programaId } = req.query;
+        if (!programaId) {
+            return res.status(400).json({ error: 'programaId es requerido' });
+        }
+        const [rows] = await pool.query(
+            `SELECT pm.IdProgMat, pm.ProgramaId, pm.MaterialId, pm.Cantidad,
+                    pm.Largo, pm.Ancho, pm.Alto,
+                    m.Material, m.Cant AS Existencia, m.LargoDisponible,
+                    COALESCE(t.EsBarra, 0) AS EsBarra,
+                    COALESCE(p.MaterialesCompleto, 0) AS ProgramaMaterialOk
+             FROM programa_materiales pm
+             LEFT JOIN materiales m ON m.IdMateriales = pm.MaterialId
+             LEFT JOIN tipo_materiales t ON t.IdTipoMaterial = m.TipoMaterialId
+             LEFT JOIN programas p ON p.IdPrograma = pm.ProgramaId
+             WHERE pm.ProgramaId = ?
+             ORDER BY pm.IdProgMat`,
+            [programaId]
+        );
+        const [progFlag] = await pool.query(
+            'SELECT COALESCE(MaterialesCompleto, 0) AS flag FROM programas WHERE IdPrograma = ?',
+            [programaId]
+        );
+        res.json({
+            materiales: rows,
+            materialesCompletos: progFlag.length > 0 && Number(progFlag[0].flag) === 1
+        });
+    } catch (error) {
+        console.error('Error al obtener materiales del programa:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+const validarDimsReceta = (obj) => {
+    const dims = {};
+    for (const k of ['Largo', 'Ancho', 'Alto']) {
+        const v = obj?.[k];
+        if (v === undefined || v === null || v === '') {
+            dims[k] = null;
+        } else {
+            const n = Number(v);
+            if (isNaN(n) || n < 0) return { error: `${k} debe ser un número >= 0` };
+            dims[k] = n;
+        }
+    }
+    return { dims };
+};
+
+app.post('/programaMateriales', async (req, res) => {
+    try {
+        const { ProgramaId, MaterialId, Cantidad, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        if (!ProgramaId || !MaterialId) {
+            return res.status(400).json({ error: 'ProgramaId y MaterialId son requeridos' });
+        }
+        const cantidad = Number(Cantidad);
+        const vd = validarDimsReceta(req.body);
+        if (vd.error) {
+            return res.status(400).json({ error: vd.error });
+        }
+        const [prog] = await pool.query('SELECT IdPrograma FROM programas WHERE IdPrograma = ?', [ProgramaId]);
+        if (prog.length === 0) {
+            return res.status(404).json({ error: 'Program not found' });
+        }
+        const [mat] = await pool.query(
+            `SELECT m.IdMateriales, m.Material, m.Cant, COALESCE(t.EsBarra, 0) AS EsBarra
+             FROM materiales m LEFT JOIN tipo_materiales t ON t.IdTipoMaterial = m.TipoMaterialId
+             WHERE m.IdMateriales = ?`,
+            [MaterialId]
+        );
+        if (mat.length === 0) {
+            return res.status(404).json({ error: 'Material no encontrado' });
+        }
+        const esBarraUno = Number(mat[0].EsBarra) === 1;
+        if (esBarraUno) {
+            if (!vd.dims.Largo || vd.dims.Largo <= 0) {
+                return res.status(400).json({ error: 'En barras solo indica el largo a usar' });
+            }
+        } else if (isNaN(cantidad) || cantidad <= 0) {
+            return res.status(400).json({ error: 'Cantidad debe ser mayor a 0' });
+        }
+        const [result] = await pool.query(
+            'INSERT INTO programa_materiales (ProgramaId, MaterialId, Cantidad, Largo, Ancho, Alto) VALUES (?, ?, ?, ?, ?, ?)',
+            [ProgramaId, MaterialId, esBarraUno ? 0 : cantidad, vd.dims.Largo, vd.dims.Ancho, vd.dims.Alto]
+        );
+        const existencia = Number(mat[0].Cant) || 0;
+        io.emit('programaMaterialesActualizados', { programaId: ProgramaId });
+        res.status(201).json({
+            success: true,
+            message: 'Material asignado al programa',
+            id: result.insertId,
+            warning: cantidad > existencia
+                ? `Aviso: se requieren ${cantidad} pero solo hay ${existencia} en existencia`
+                : null
+        });
+    } catch (error) {
+        console.error('Error al asignar material:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Guardado en lote desde el checklist (una sola vuelta): [{MaterialId, Cantidad, Largo, Ancho, Alto}]
+app.post('/programaMaterialesBatch', async (req, res) => {
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
+    try {
+        const { ProgramaId, items, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            await connection.rollback();
+            connection.release();
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        if (!ProgramaId || !Array.isArray(items) || items.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(400).json({ error: 'ProgramaId e items[] son requeridos' });
+        }
+        const [prog] = await connection.query('SELECT IdPrograma FROM programas WHERE IdPrograma = ?', [ProgramaId]);
+        if (prog.length === 0) {
+            await connection.rollback();
+            connection.release();
+            return res.status(404).json({ error: 'Program not found' });
+        }
+        const avisos = [];
+        let guardados = 0;
+        for (const it of items) {
+            if (!it?.MaterialId) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ error: 'Cada item necesita MaterialId' });
+            }
+            const [mat] = await connection.query(
+                `SELECT m.IdMateriales, m.Material, m.Cant, COALESCE(t.EsBarra, 0) AS EsBarra
+                 FROM materiales m LEFT JOIN tipo_materiales t ON t.IdTipoMaterial = m.TipoMaterialId
+                 WHERE m.IdMateriales = ?`,
+                [it.MaterialId]
+            );
+            if (mat.length === 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(404).json({ error: `Material #${it.MaterialId} no encontrado` });
+            }
+            const esBarraItem = Number(mat[0].EsBarra) === 1;
+            const cantidad = Number(it?.Cantidad);
+            const vd = validarDimsReceta(it);
+            if (vd.error) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ error: vd.error });
+            }
+            if (esBarraItem) {
+                // Barras: no se pide cantidad, solo el largo a usar
+                if (!vd.dims.Largo || vd.dims.Largo <= 0) {
+                    await connection.rollback();
+                    connection.release();
+                    return res.status(400).json({ error: `En barras solo indica el largo a usar (${mat[0].Material})` });
+                }
+            } else if (isNaN(cantidad) || cantidad <= 0) {
+                await connection.rollback();
+                connection.release();
+                return res.status(400).json({ error: 'Cantidad debe ser mayor a 0' });
+            }
+            await connection.query(
+                'INSERT INTO programa_materiales (ProgramaId, MaterialId, Cantidad, Largo, Ancho, Alto) VALUES (?, ?, ?, ?, ?, ?)',
+                [ProgramaId, it.MaterialId, esBarraItem ? 0 : cantidad, vd.dims.Largo, vd.dims.Ancho, vd.dims.Alto]
+            );
+            guardados++;
+            if (!esBarraItem && cantidad > (Number(mat[0].Cant) || 0)) {
+                avisos.push(`${mat[0].Material}: se piden ${cantidad}, hay ${mat[0].Cant ?? 0}`);
+            }
+        }
+        await connection.commit();
+        connection.release();
+        io.emit('programaMaterialesActualizados', { programaId: ProgramaId });
+        res.status(201).json({
+            success: true,
+            message: `Se asignaron ${guardados} material(es)`,
+            guardados,
+            warning: avisos.length > 0 ? 'Sin stock suficiente: ' + avisos.join(' · ') : null
+        });
+    } catch (error) {
+        await connection.rollback();
+        connection.release();
+        console.error('Error en batch de materiales:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Marcar materiales completos de UN programa (declaración de que trae todo lo
+// necesario). Solo se puede marcar si tiene ≥1 material asignado y hay stock
+// suficiente (barras: pulgadas disponibles; demás: unidades). Solo admin.
+app.put('/programasMarcarMateriales/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        const [prog] = await pool.query('SELECT IdPrograma, MaterialesCompleto FROM programas WHERE IdPrograma = ?', [id]);
+        if (prog.length === 0) {
+            return res.status(404).json({ error: 'Program not found' });
+        }
+        const nuevoValor = Number(prog[0].MaterialesCompleto) === 1 ? 0 : 1;
+        if (nuevoValor === 1) {
+            const [recetas] = await pool.query(
+                `SELECT pm.Cantidad, pm.Largo,
+                        m.Cant AS existencia, m.LargoDisponible,
+                        COALESCE(t.EsBarra, 0) AS EsBarra
+                 FROM programa_materiales pm
+                 LEFT JOIN materiales m ON m.IdMateriales = pm.MaterialId
+                 LEFT JOIN tipo_materiales t ON t.IdTipoMaterial = m.TipoMaterialId
+                 WHERE pm.ProgramaId = ?`,
+                [id]
+            );
+            if (recetas.length === 0) {
+                return res.status(400).json({ error: 'Asigna al menos un material al programa primero' });
+            }
+            const faltantes = [];
+            for (const r of recetas) {
+                if (Number(r.EsBarra) === 1) {
+                    if ((Number(r.LargoDisponible) || 0) < (Number(r.Largo) || 0)) {
+                        faltantes.push('largo insuficiente en barras');
+                    }
+                } else if ((Number(r.existencia) || 0) < Number(r.Cantidad)) {
+                    faltantes.push(`faltan ${Number(r.Cantidad) - (Number(r.existencia) || 0)} en stock`);
+                }
+            }
+            if (faltantes.length > 0) {
+                return res.status(400).json({ error: 'Sin stock suficiente: ' + faltantes.join(' · ') });
+            }
+        }
+        await pool.query('UPDATE programas SET MaterialesCompleto = ? WHERE IdPrograma = ?', [nuevoValor, id]);
+        io.emit('programaMaterialesActualizados', { programaId: Number(id) });
+        res.json({
+            success: true,
+            MaterialesCompleto: nuevoValor === 1,
+            message: nuevoValor === 1 ? 'Programa marcado con materiales completos' : 'Programa marcado con materiales incompletos'
+        });
+    } catch (error) {
+        console.error('Error al marcar materiales del programa:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.delete('/programaMateriales/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { UsuarioId } = req.body || {};
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        const [prev] = await pool.query('SELECT ProgramaId FROM programa_materiales WHERE IdProgMat = ?', [id]);
+        const [result] = await pool.query('DELETE FROM programa_materiales WHERE IdProgMat = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'Asignación no encontrada' });
+        }
+        if (prev.length > 0) {
+            io.emit('programaMaterialesActualizados', { programaId: prev[0].ProgramaId });
+        }
+        res.json({ success: true, message: 'Asignación eliminada (sin devolución: nunca descontó stock)' });
+    } catch (error) {
+        console.error('Error al eliminar asignación:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Configuración pin/funda por pin del bloque (informativo, no descuenta)
+app.get('/bloquePinFunda', async (req, res) => {
+    try {
+        const { bloqueId } = req.query;
+        if (!bloqueId) {
+            return res.status(400).json({ error: 'bloqueId es requerido' });
+        }
+        const [rows] = await pool.query(
+            `SELECT pf.IdPinFunda, pf.BloqueId, pf.NumPin, pf.PinMaterialId, pf.FundaMaterialId,
+                    pf.Fecha, pf.UsuarioId,
+                    mp.Material AS PinMaterial, mf.Material AS FundaMaterial
+             FROM bloque_pin_funda pf
+             LEFT JOIN materiales mp ON mp.IdMateriales = pf.PinMaterialId
+             LEFT JOIN materiales mf ON mf.IdMateriales = pf.FundaMaterialId
+             WHERE pf.BloqueId = ?
+             ORDER BY pf.NumPin`,
+            [bloqueId]
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error('Error al obtener pin/funda:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.put('/bloquePinFunda', async (req, res) => {
+    try {
+        const { BloqueId, NumPin, PinMaterialId, FundaMaterialId, UsuarioId } = req.body;
+        if (!(await checkAdminInventario(UsuarioId))) {
+            return res.status(403).json({ error: 'Only administrators' });
+        }
+        if (!BloqueId || !NumPin || Number(NumPin) < 1) {
+            return res.status(400).json({ error: 'BloqueId y NumPin (>= 1) son requeridos' });
+        }
+        const [blq] = await pool.query('SELECT NoParte, CantidadPines FROM bloques WHERE NoParte = ?', [BloqueId]);
+        if (blq.length === 0) {
+            return res.status(404).json({ error: 'Block not found' });
+        }
+        if (Number(NumPin) > Number(blq[0].CantidadPines || 0)) {
+            return res.status(400).json({ error: `El bloque solo tiene ${blq[0].CantidadPines || 0} pines` });
+        }
+        for (const [campo, valor, etiqueta] of [['PinMaterialId', PinMaterialId, 'pin'], ['FundaMaterialId', FundaMaterialId, 'funda']]) {
+            if (valor !== undefined && valor !== null && valor !== '') {
+                const [m] = await pool.query('SELECT IdMateriales FROM materiales WHERE IdMateriales = ?', [valor]);
+                if (m.length === 0) {
+                    return res.status(404).json({ error: `Material de ${etiqueta} no encontrado` });
+                }
+            }
+        }
+        const pinId = PinMaterialId === '' || PinMaterialId === undefined ? null : PinMaterialId;
+        const fundaId = FundaMaterialId === '' || FundaMaterialId === undefined ? null : FundaMaterialId;
+        const [existe] = await pool.query(
+            'SELECT IdPinFunda FROM bloque_pin_funda WHERE BloqueId = ? AND NumPin = ? LIMIT 1',
+            [BloqueId, NumPin]
+        );
+        if (existe.length > 0) {
+            await pool.query(
+                `UPDATE bloque_pin_funda
+                 SET PinMaterialId = ?, FundaMaterialId = ?, Fecha = ?, UsuarioId = ?
+                 WHERE IdPinFunda = ?`,
+                [pinId, fundaId, getHermosilloDateTime(), UsuarioId, existe[0].IdPinFunda]
+            );
+        } else {
+            await pool.query(
+                `INSERT INTO bloque_pin_funda (BloqueId, NumPin, PinMaterialId, FundaMaterialId, Fecha, UsuarioId)
+                 VALUES (?, ?, ?, ?, ?, ?)`,
+                [BloqueId, NumPin, pinId, fundaId, getHermosilloDateTime(), UsuarioId]
+            );
+        }
+        io.emit('bloquePinFundaActualizado', { bloqueId: BloqueId });
+        res.json({ success: true, message: `Pin #${NumPin} configurado` });
+    } catch (error) {
+        console.error('Error al guardar pin/funda:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Historial de materiales de un bloque para la sección de ensamble:
+// kardex etiquetado + lo planeado en sus programas (asignado vs. movido)
+app.get('/ensambleHistorialMateriales', async (req, res) => {
+    try {
+        const { bloqueId } = req.query;
+        if (!bloqueId) {
+            return res.status(400).json({ error: 'bloqueId es requerido' });
+        }
+        const [movs] = await pool.query(
+            `SELECT m.IdMovimiento, m.TipoMov, m.Cantidad, m.ProgramaId, m.Fecha,
+                    DATE_FORMAT(m.Fecha, '%d/%m/%Y %H:%i') AS FechaFormateada,
+                    m.UsuarioId, m.Comentario, u.Nombre AS UsuarioNombre
+             FROM inventario_movimientos m
+             LEFT JOIN usuarios u ON u.NoEmpleado = m.UsuarioId
+             WHERE m.BloqueNoParte = ?
+             ORDER BY m.Fecha DESC, m.IdMovimiento DESC
+             LIMIT 100`,
+            [bloqueId]
+        );
+        const [planeado] = await pool.query(
+            `SELECT pm.IdProgMat, pm.ProgramaId, pm.MaterialId, pm.Cantidad,
+                    pm.Largo, pm.Ancho, pm.Alto,
+                    m.Material, m.Cant AS Existencia,
+                    p.NumeroOperacion, p.NombrePrograma
+             FROM programa_materiales pm
+             JOIN programas p ON p.IdPrograma = pm.ProgramaId
+             LEFT JOIN dibujos_bloques d ON d.IdDibujo = p.DibujoId
+             LEFT JOIN materiales m ON m.IdMateriales = pm.MaterialId
+             WHERE p.BloqueId = ? OR d.BloqueId = ?
+             ORDER BY p.IdPrograma, pm.IdProgMat`,
+            [bloqueId, bloqueId]
+        );
+        res.json({ movimientos: movs, planeado });
+    } catch (error) {
+        console.error('Error al obtener historial de materiales:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });

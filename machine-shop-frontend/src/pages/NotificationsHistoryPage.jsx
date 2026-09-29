@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import {
     FiBell, FiX, FiCheck, FiFilter, FiTrash2, FiClock, FiUser,
     FiMail, FiCheckCircle, FiAlertCircle, FiPackage, FiBox,
-    FiChevronLeft, FiChevronRight, FiDownload, FiEye, FiLink
+    FiChevronLeft, FiChevronRight, FiDownload, FiEye, FiLink, FiFile
 } from "react-icons/fi";
 
 export const NotificationsHistoryPage = () => {
@@ -25,11 +25,14 @@ export const NotificationsHistoryPage = () => {
     const [totalCount, setTotalCount] = useState(0);
     const itemsPerPage = 20;
 
-    // Cargar notificaciones al montar y cuando cambien filtros
+    // Cargar notificaciones al montar y cuando cambien filtros o llegue el usuario.
+    // (user en deps: si se entra directo/refresh, el primer render aún no tiene user
+    // y sin esto la lista quedaba vacía para siempre hasta cambiar filtro/página)
+    const userEmp = user?.noEmp;
     useEffect(() => {
         loadNotifications();
         loadUnreadCount();
-    }, [filter, currentPage]);
+    }, [filter, currentPage, userEmp]);
 
     const loadNotifications = async () => {
         if (!user?.noEmp) return;
@@ -53,7 +56,7 @@ export const NotificationsHistoryPage = () => {
             setTotalPages(Math.ceil((response.data?.length || 0) / itemsPerPage));
         } catch (error) {
             console.error('Error cargando notificaciones:', error);
-            showToast.error('Error al cargar notificaciones', { duration: 3000, position: "top-right" });
+            showToast.error('Error loading notifications', { duration: 3000, position: "top-right" });
         } finally {
             setLoading(false);
         }
@@ -76,7 +79,7 @@ export const NotificationsHistoryPage = () => {
             markAsRead(id);
         } catch (error) {
             console.error('Error marcando como leída:', error);
-            showToast.error('Error al marcar como leída', { duration: 3000, position: "top-right" });
+            showToast.error('Error marking as read', { duration: 3000, position: "top-right" });
         }
     };
 
@@ -85,26 +88,26 @@ export const NotificationsHistoryPage = () => {
         try {
             await api.put('/notificaciones/marcar-todas-leidas', { usuarioId: user.noEmp });
             markAllAsRead();
-            showToast.success('Todas marcadas como leídas', { duration: 3000, position: "top-right" });
+            showToast.success('All marked as read', { duration: 3000, position: "top-right" });
             loadNotifications();
         } catch (error) {
             console.error('Error marcando todas:', error);
-            showToast.error('Error al marcar todas', { duration: 3000, position: "top-right" });
+            showToast.error('Error marking all', { duration: 3000, position: "top-right" });
         }
     };
 
     const handleClearAll = async () => {
         if (!user?.noEmp) return;
-        const confirmed = window.confirm('¿Eliminar todas las notificaciones leídas?');
+        const confirmed = window.confirm('Delete all read notifications?');
         if (!confirmed) return;
         try {
             await api.delete(`/notificaciones/limpiar-leidas?usuarioId=${user.noEmp}&diasAntiguedad=0`);
             clearAll();
-            showToast.success('Notificaciones leídas eliminadas', { duration: 3000, position: "top-right" });
+            showToast.success('Read notifications deleted', { duration: 3000, position: "top-right" });
             loadNotifications();
         } catch (error) {
             console.error('Error limpiando:', error);
-            showToast.error('Error al limpiar', { duration: 3000, position: "top-right" });
+            showToast.error('Error clearing', { duration: 3000, position: "top-right" });
         }
     };
 
@@ -166,23 +169,29 @@ export const NotificationsHistoryPage = () => {
             case 'drawing_deleted': return <FiFile style={{ color: '#e67e22' }} />;
             case 'program_deleted': return <FiFile style={{ color: '#e67e22' }} />;
             case 'ensemble_deleted': return <FiBox style={{ color: '#e67e22' }} />;
+            case 'drawing_created': return <FiFile style={{ color: '#2ecc71' }} />;
+            case 'program_created': return <FiFile style={{ color: '#2ecc71' }} />;
+            case 'ensemble_created': return <FiBox style={{ color: '#2ecc71' }} />;
             default: return <FiBell />;
         }
     };
 
     const getTypeLabel = (type) => {
         const labels = {
-            'ticket_created': 'Ticket Creado',
-            'ticket_updated': 'Ticket Actualizado',
-            'ticket_completed': 'Ticket Completado',
-            'ticket_trashed': 'Ticket a Papelera',
-            'ticket_deleted': 'Ticket Eliminado',
-            'block_created': 'Block Creado',
-            'block_updated': 'Block Actualizado',
-            'block_deleted': 'Block Eliminado',
-            'drawing_deleted': 'Dibujo Eliminado',
-            'program_deleted': 'Programa Eliminado',
-            'ensemble_deleted': 'Ensemble Eliminado',
+            'ticket_created': 'Ticket Created',
+            'ticket_updated': 'Ticket Updated',
+            'ticket_completed': 'Ticket Completed',
+            'ticket_trashed': 'Ticket Trashed',
+            'ticket_deleted': 'Ticket Deleted',
+            'block_created': 'Block Created',
+            'block_updated': 'Block Updated',
+            'block_deleted': 'Block Deleted',
+            'drawing_deleted': 'Drawing Deleted',
+            'program_deleted': 'Program Deleted',
+            'ensemble_deleted': 'Ensemble Deleted',
+            'drawing_created': 'Drawing Added',
+            'program_created': 'Program Added',
+            'ensemble_created': 'Ensemble Added',
         };
         return labels[type] || type;
     };
@@ -204,7 +213,7 @@ export const NotificationsHistoryPage = () => {
                 <Navbar />
                 {isAdmin && <Sidebar />}
                 <div className={`page-container ${!isAdmin ? 'full-width' : ''}`}>
-                    <div className="loading-dashboard">Cargando historial...</div>
+                    <div className="loading-dashboard">Loading history...</div>
                 </div>
             </>
         );
@@ -222,8 +231,8 @@ export const NotificationsHistoryPage = () => {
                             <FiBell className="header-icon" />
                         </div>
                         <div className="header-text">
-                            <h1 className="header-title">Historial de Notificaciones</h1>
-                            <p className="header-subtitle">Gestiona y revisa todas las actividades del sistema</p>
+                            <h1 className="header-title">Notification History</h1>
+                            <p className="header-subtitle">Manage and review all system activity</p>
                         </div>
                     </div>
                     
@@ -234,11 +243,11 @@ export const NotificationsHistoryPage = () => {
                         </div>
                         <div className="stat-card unread">
                             <span className="stat-number">{unreadCount}</span>
-                            <span className="stat-label">Sin leer</span>
+                            <span className="stat-label">Unread</span>
                         </div>
                         <div className="stat-card read">
                             <span className="stat-number">{totalCount - unreadCount}</span>
-                            <span className="stat-label">Leídas</span>
+                            <span className="stat-label">Read</span>
                         </div>
                     </div>
 
@@ -247,17 +256,17 @@ export const NotificationsHistoryPage = () => {
                             className={`btn-mark-all ${unreadCount === 0 ? 'disabled' : ''}`}
                             onClick={handleMarkAllAsRead}
                             disabled={unreadCount === 0}
-                            title={unreadCount === 0 ? 'No hay notificaciones sin leer' : `Marcar ${unreadCount} como leídas`}
+                            title={unreadCount === 0 ? 'No unread notifications' : `Mark ${unreadCount} as read`}
                         >
                             <FiCheckCircle />
-                            <span>Marcar todas como leídas</span>
+                            <span>Mark all as read</span>
                             {unreadCount > 0 && (
                                 <span className="btn-badge">{unreadCount}</span>
                             )}
                         </button>
-                        <button className="btn-clear" onClick={handleClearAll} title="Eliminar notificaciones leídas">
+                        <button className="btn-clear" onClick={handleClearAll} title="Delete read notifications">
                             <FiTrash2 />
-                            <span>Limpiar leídas</span>
+                            <span>Clear read</span>
                         </button>
                     </div>
                 </div>
@@ -269,21 +278,21 @@ export const NotificationsHistoryPage = () => {
                             className={`filter-tab ${filter === 'all' ? 'active' : ''}`}
                             onClick={() => { setFilter('all'); setCurrentPage(1); }}
                         >
-                            <FiBell /> Todas
+                            <FiBell /> All
                             <span className="tab-count">{totalCount}</span>
                         </button>
                         <button 
                             className={`filter-tab ${filter === 'unread' ? 'active' : ''}`}
                             onClick={() => { setFilter('unread'); setCurrentPage(1); }}
                         >
-                            <FiMail /> No leídas
+                            <FiMail /> Unread
                             <span className="tab-count">{unreadCount}</span>
                         </button>
                         <button 
                             className={`filter-tab ${filter === 'read' ? 'active' : ''}`}
                             onClick={() => { setFilter('read'); setCurrentPage(1); }}
                         >
-                            <FiCheckCircle /> Leídas
+                            <FiCheckCircle /> Read
                         </button>
                     </div>
                 </div>
@@ -291,12 +300,12 @@ export const NotificationsHistoryPage = () => {
                 {/* NOTIFICATIONS LIST */}
                 <div className="notifications-container">
                     {loading && filteredNotifications.length === 0 ? (
-                        <div className="loading-dashboard">Cargando notificaciones...</div>
+                        <div className="loading-dashboard">Loading notifications...</div>
                     ) : filteredNotifications.length === 0 ? (
                         <div className="empty-state">
                             <FiBell size={48} />
-                            <h3>No hay notificaciones</h3>
-                            <p>{filter === 'unread' ? '¡Todas leídas! 🎉' : 'No hay notificaciones en este filtro'}</p>
+                            <h3>No notifications</h3>
+                            <p>{filter === 'unread' ? 'All read! 🎉' : 'No notifications in this filter'}</p>
                         </div>
                     ) : (
                         <>
@@ -322,7 +331,7 @@ export const NotificationsHistoryPage = () => {
                                                 </span>
                                                 {notif.UsuarioEmisorId && (
                                                     <span className="notification-sender">
-                                                        <FiUser /> {notif.EmisorNombre || `Usuario ${notif.UsuarioEmisorId}`}
+                                                        <FiUser /> {notif.EmisorNombre || `User ${notif.UsuarioEmisorId}`}
                                                     </span>
                                                 )}
                                                 {notif.ReferenciaTipo && notif.ReferenciaId && (
@@ -337,7 +346,7 @@ export const NotificationsHistoryPage = () => {
                                                 <button 
                                                     className="btn-mark-read"
                                                     onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.IdNotificacion); }}
-                                                    title="Marcar como leída"
+                                                    title="Mark as read"
                                                 >
                                                     <FiCheck />
                                                 </button>
@@ -345,7 +354,7 @@ export const NotificationsHistoryPage = () => {
                                             <button 
                                                 className="btn-delete"
                                                 onClick={(e) => { e.stopPropagation(); clearNotification(notif.IdNotificacion); }}
-                                                title="Eliminar"
+                                                title="Delete"
                                             >
                                                 <FiX />
                                             </button>
@@ -365,7 +374,7 @@ export const NotificationsHistoryPage = () => {
                                         <FiChevronLeft />
                                     </button>
                                     <span className="pagination-info">
-                                        Página {currentPage} de {totalPages}
+                                        Page {currentPage} of {totalPages}
                                     </span>
                                     <button 
                                         className={`pagination-btn ${currentPage === totalPages ? 'disabled' : ''}`}

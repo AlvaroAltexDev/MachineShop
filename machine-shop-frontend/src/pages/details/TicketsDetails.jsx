@@ -1,20 +1,5 @@
 import React from 'react';
-import { 
-    FiUser, 
-    FiCalendar, 
-    FiFlag, 
-    FiFileText, 
-    FiPackage, 
-    FiClock,
-    FiCheckCircle,
-    FiAlertCircle,
-    FiX,
-    FiDownload,
-    FiPrinter,
-    FiCode,
-    FiCpu,
-    FiBox
-} from 'react-icons/fi';
+import { FiUser, FiCalendar, FiFlag, FiFileText, FiPackage, FiClock, FiCheckCircle, FiAlertCircle, FiX, FiDownload, FiPrinter, FiCode, FiCpu, FiBox } from 'react-icons/fi';
 import { FaRegCalendarAlt, FaRegClock } from 'react-icons/fa';
 
 export const TicketsDetails = ({ ticket, onClose }) => {
@@ -90,10 +75,10 @@ export const TicketsDetails = ({ ticket, onClose }) => {
                         </span>
                     </div>
                     <div className="header-actions">
-                        <button className="header-action-btn" title="Imprimir">
+                        <button className="header-action-btn" title="Print">
                             <FiPrinter />
                         </button>
-                        <button className="header-action-btn" title="Descargar">
+                        <button className="header-action-btn" title="Download">
                             <FiDownload />
                         </button>
                         <button className="header-close-btn" onClick={onClose}>
@@ -110,47 +95,47 @@ export const TicketsDetails = ({ ticket, onClose }) => {
                     <div className="details-card-modern">
                         <div className="card-header-modern">
                             <span className="card-icon"><FiUser /></span>
-                            <h4>Información General</h4>
+                            <h4>General Information</h4>
                         </div>
                         <div className="card-body-modern">
                             <div className="info-row">
                                 <div className="info-label">
                                     <FiUser size={14} />
-                                    <span>Solicitante</span>
+                                    <span>Requester</span>
                                 </div>
-                                <div className="info-value">{ticket.SolicitanteNombre || 'Desconocido'}</div>
+                                <div className="info-value">{ticket.SolicitanteNombre || 'Unknown'}</div>
                             </div>
                             <div className="info-row">
                                 <div className="info-label">
                                     <FaRegCalendarAlt size={14} />
-                                    <span>Solicitado</span>
+                                    <span>Requested</span>
                                 </div>
                                 <div className="info-value">{ticket.FechaSolicitacionFormateada || 'N/A'}</div>
                             </div>
                             <div className="info-row">
                                 <div className="info-label">
                                     <FaRegClock size={14} />
-                                    <span>Fecha Deseada</span>
+                                    <span>Desired Date</span>
                                 </div>
                                 <div className="info-value highlight">{ticket.FechaDeseadaFormateada || 'N/A'}</div>
                             </div>
                             <div className="info-row">
                                 <div className="info-label">
                                     <FiFlag size={14} />
-                                    <span>Prioridad</span>
+                                    <span>Priority</span>
                                 </div>
                                 <div className="info-value">
                                     <span className={`priority-badge-modern ${getPriorityColor(ticket.PrioridadNombre)}`}>
-                                        {getPriorityIcon(ticket.PrioridadNombre)} {ticket.PrioridadNombre || 'Media'}
+                                        {getPriorityIcon(ticket.PrioridadNombre)} {ticket.PrioridadNombre || 'Medium'}
                                     </span>
                                 </div>
                             </div>
                             <div className="info-row">
                                 <div className="info-label">
                                     <FiPackage size={14} />
-                                    <span>Área</span>
+                                    <span>Area</span>
                                 </div>
-                                <div className="info-value">{ticket.NombreArea || ticket.Area || 'Sin área'}</div>
+                                <div className="info-value">{ticket.NombreArea || ticket.Area || 'No area'}</div>
                             </div>
                         </div>
                     </div>
@@ -161,11 +146,11 @@ export const TicketsDetails = ({ ticket, onClose }) => {
                     <div className="details-card-modern">
                         <div className="card-header-modern">
                             <span className="card-icon"><FiFileText /></span>
-                            <h4>Descripción</h4>
+                            <h4>Description</h4>
                         </div>
                         <div className="card-body-modern description-card">
                             <div className="description-text">
-                                {ticket.Descripcion || 'Sin descripción'}
+                                {ticket.Descripcion || 'No description'}
                             </div>
                         </div>
                     </div>
@@ -174,19 +159,25 @@ export const TicketsDetails = ({ ticket, onClose }) => {
                         <div className="details-card-modern blocks-card">
                             <div className="card-header-modern">
                                 <span className="card-icon"><FiPackage /></span>
-                                <h4>Bloques Solicitados</h4>
+                                <h4>Requested Blocks</h4>
                                 <span className="blocks-progress">
-                                    {ticket.Detalles.length} bloque{ticket.Detalles.length !== 1 ? 's' : ''}
+                                    {ticket.Detalles.length} block{ticket.Detalles.length !== 1 ? 's' : ''}
                                 </span>
                             </div>
                             <div className="card-body-modern blocks-grid-modern">
                                 {ticket.Detalles.map((detalle, idx) => (
-                                    <div 
-                                        key={idx} 
+                                    <div
+                                        key={idx}
                                         className={`block-chip-modern ${detalle.esCompleto ? 'block-complete' : 'block-pending'}`}
                                     >
                                         <span className="block-code">{detalle.NoParte || detalle.BloqueId}</span>
                                         <span className="block-qty">×{detalle.Cantidad}</span>
+                                        <span
+                                            className={`block-apartado ${Number(detalle.Apartado || 0) >= Number(detalle.Cantidad) && Number(detalle.Cantidad) > 0 ? 'full' : ''}`}
+                                            title={`Reserved: ${Number(detalle.Apartado || 0)} of ${detalle.Cantidad}`}
+                                        >
+                                            {Number(detalle.Apartado || 0)}/{detalle.Cantidad}
+                                        </span>
                                         {detalle.esCompleto ? (
                                             <span className="block-status ok"><FiCheckCircle /></span>
                                         ) : (
@@ -203,8 +194,8 @@ export const TicketsDetails = ({ ticket, onClose }) => {
             {/* FOOTER */}
             <div className="ticket-details-footer-modern">
                 <button className="footer-btn primary" onClick={onClose}>
-                    <FiCheckCircle style={{marginRight: 6}} />
-                    Cerrar
+                    <FiCheckCircle style={{ marginRight: 6 }} />
+                    Close
                 </button>
             </div>
         </div>

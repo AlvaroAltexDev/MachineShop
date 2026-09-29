@@ -2,7 +2,8 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthProvider";
 import { useNotifications } from "../context/NotificationProvider";
-import { FiMenu, FiChevronDown, FiLogOut, FiBell, FiX, FiExternalLink, FiClock } from "react-icons/fi";
+import { FiMenu, FiChevronDown, FiLogOut, FiBell, FiX, FiExternalLink, FiClock, FiHome, FiSun, FiMoon } from "react-icons/fi";
+import { useTheme } from "../context/ThemeContext";
 import { LuChartNoAxesGantt } from "react-icons/lu";
 import { FaChartSimple } from "react-icons/fa6";
 import { GrProjects } from "react-icons/gr";
@@ -20,6 +21,7 @@ const Navbar = () => {
 
     const navigate = useNavigate();
     const { user } = useContext(AuthContext);
+    const { isLight, toggleTheme } = useTheme();
     const { notifications, unreadCount, markAsRead, markAllAsRead, clearNotification, clearAll } = useNotifications();
 
     const userMenuRef = useRef(null);
@@ -74,6 +76,7 @@ const Navbar = () => {
     const isAdmin = Number(user?.rolId) === 1;
 
     const mainMenuItems = [
+        { to: "/home", label: "Home", icon: <FiHome /> },
         ...(isAdmin ? [{ to: "/metrics", label: "Metrics", icon: <FaChartSimple /> }] : []),
         { to: "/tickets", label: "Tickets", icon: <LuTickets /> },
         { to: "/blocks", label: "Connectors", icon: <LuBlocks /> },
@@ -85,7 +88,7 @@ const Navbar = () => {
         const now = new Date();
         const diff = now - date;
 
-        if (diff < 60000) return 'Ahora';
+        if (diff < 60000) return 'Now';
         if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
         if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
         return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -101,6 +104,9 @@ const Navbar = () => {
             case 'block_created': return <FiBell style={{ color: '#9b59b6' }} />;
             case 'block_updated': return <FiBell style={{ color: '#8e44ad' }} />;
             case 'block_deleted': return <FiBell style={{ color: '#c0392b' }} />;
+            case 'drawing_created': return <FiBell style={{ color: '#2ecc71' }} />;
+            case 'program_created': return <FiBell style={{ color: '#2ecc71' }} />;
+            case 'ensemble_created': return <FiBell style={{ color: '#2ecc71' }} />;
             default: return <FiBell />;
         }
     };
@@ -176,12 +182,20 @@ const Navbar = () => {
 
             {/* RIGHT SIDE - NOTIFICATIONS & USER */}
             <div className="navbar-right">
+                <button
+                    className="notif-button"
+                    onClick={toggleTheme}
+                    title={isLight ? "Switch to dark mode" : "Switch to light mode"}
+                    aria-label="Toggle theme"
+                >
+                    {isLight ? <FiMoon size={20} /> : <FiSun size={20} />}
+                </button>
                 {/* NOTIFICATION BELL */}
                 <div className="notif-menu-container" ref={notifMenuRef}>
                     <button
                         className={`notif-button ${unreadCount > 0 ? 'has-unread' : ''}`}
                         onClick={toggleNotifMenu}
-                        aria-label="Notificaciones"
+                        aria-label="Notifications"
                     >
                         <FiBell size={20} />
                         {unreadCount > 0 && (
@@ -192,16 +206,16 @@ const Navbar = () => {
                     {notifMenuOpen && (
                         <div className="notif-dropdown">
                             <div className="notif-header">
-                                <h4>Notificaciones</h4>
+                                <h4>Notifications</h4>
                                 <div className="notif-header-actions">
                                     {unreadCount > 0 && (
                                         <button className="notif-btn-small" onClick={markAllAsRead}>
-                                            Marcar todo como leído
+                                            Mark all as read
                                         </button>
                                     )}
                                     {notifications.length > 0 && (
                                         <button className="notif-btn-small danger" onClick={clearAll}>
-                                            Limpiar todo
+                                            Clear all
                                         </button>
                                     )}
                                 </div>
@@ -211,7 +225,7 @@ const Navbar = () => {
                                 {notifications.length === 0 ? (
                                     <div className="notif-empty">
                                         <FiBell size={32} />
-                                        <p>No hay notificaciones</p>
+                                        <p>No notifications</p>
                                     </div>
                                 ) : (
                                     notifications.map((notif) => (
@@ -237,12 +251,12 @@ const Navbar = () => {
                                                 )}
                                             </div>
                                             {(notif.ticketId || notif.noParte) && !notif.read && (
-                                                <FiExternalLink className="notif-external-link" title="Ir al elemento" />
+                                                <FiExternalLink className="notif-external-link" title="Go to item" />
                                             )}
                                             <button
                                                 className="notif-close"
                                                 onClick={(e) => { e.stopPropagation(); clearNotification(notif.id); }}
-                                                aria-label="Eliminar notificación"
+                                                aria-label="Delete notification"
                                             >
                                                 <FiX size={14} />
                                             </button>
@@ -253,7 +267,7 @@ const Navbar = () => {
                             <div className="notif-footer">
                                 <Link to="/notifications" className="notif-history-link" onClick={() => setNotifMenuOpen(false)}>
                                     <FiClock />
-                                    Historial de Notificaciones
+                                    Notifications History
                                 </Link>
                             </div>
                         </div>
@@ -282,7 +296,7 @@ const Navbar = () => {
                             <div className="dropdown-divider"></div>
                             <button className="logout-button" onClick={handleLogOut}>
                                 <FiLogOut />
-                                Log Out
+                                Logout
                             </button>
                         </div>
                     )}

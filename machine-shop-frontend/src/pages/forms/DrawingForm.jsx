@@ -48,7 +48,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
             }
 
             // Obtener el nombre del dibujo
-            const nombreArchivo = dibujo.NombreDibujo || dibujo.nombre || dibujo.RutaDibujo || 'Sin nombre';
+            const nombreArchivo = dibujo.NombreDibujo || dibujo.nombre || dibujo.RutaDibujo || 'Unnamed';
 
             setFormData({
                 BloqueId: dibujo.BloqueId || bloqueId || '',
@@ -99,7 +99,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                 const tipoDibujoRes = await api.get("/tiposDibujosSelectAll");
                 setTipoDibujo(tipoDibujoRes.data);
             } catch (error) {
-                console.error('Error al obtener tipos de dibujo:', error);
+                console.error('Error fetching drawing types:', error);
             }
         };
 
@@ -110,7 +110,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
         if (!file) return;
 
         if (file.size > 50 * 1024 * 1024) {
-            showToast.error("El archivo excede el límite de 50MB", {
+            showToast.error("File exceeds the 50MB limit", {
                 duration: 4000,
                 position: "top-right",
             });
@@ -121,7 +121,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
         const ext = '.' + file.name.split('.').pop().toLowerCase();
 
         if (!allowedExtensions.includes(ext)) {
-            showToast.error(`Formato no permitido. Permitidos: ${allowedExtensions.join(', ')}`, {
+            showToast.error(`Format not allowed. Allowed: ${allowedExtensions.join(', ')}`, {
                 duration: 4000,
                 position: "top-right",
             });
@@ -177,7 +177,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
 
         try {
             if (!formData.TipoDibujoId) {
-                showToast.error("Por favor seleccione un tipo de dibujo", {
+                showToast.error("Please select a drawing type", {
                     duration: 3000,
                     position: "top-right",
                 });
@@ -186,7 +186,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
             }
 
             if (!formData.UsuarioId) {
-                showToast.error("Error: Usuario no identificado. Por favor recargue la página.", {
+                showToast.error("Error: User not identified. Please reload the page.", {
                     duration: 4000,
                     position: "top-right",
                 });
@@ -258,7 +258,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                 onSuccess(response.data);
             }
 
-            showToast.success(isEditing ? "Dibujo actualizado correctamente" : "Dibujo guardado correctamente", {
+            showToast.success(isEditing ? "Drawing updated successfully" : "Drawing saved successfully", {
                 duration: 3000,
                 position: "top-right",
             });
@@ -267,7 +267,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
             console.error('❌ Error al procesar dibujo:', error);
             console.error('Detalles:', error.response?.data);
 
-            const errorMessage = error.response?.data?.error || "Error al procesar el dibujo";
+            const errorMessage = error.response?.data?.error || "Error processing the drawing";
             showToast.error(errorMessage, {
                 duration: 5000,
                 position: "top-right",
@@ -281,7 +281,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
         .filter(d => d && d.IdTipo)
         .map(d => ({
             value: String(d.IdTipo),
-            label: d.TipoDibujo || 'Sin nombre'
+            label: d.TipoDibujo || 'Unnamed'
         }));
 
     // Limpiar URLs de objeto al desmontar
@@ -300,7 +300,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                     <div className="form-group">
                         <label className="form-label">
                             <FiImage className="form-icon" />
-                            Tipo de Dibujo *
+                            Drawing Type *
                         </label>
                         <select
                             name="TipoDibujoId"
@@ -309,7 +309,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                             className="form-input"
                             required
                         >
-                            <option value="">Seleccione un tipo de dibujo</option>
+                            <option value="">Select a drawing type</option>
                             {tipoDibujoOptions.map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
@@ -322,7 +322,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                         <div className="form-group">
                             <label className="form-label">
                                 <FiCalendar className="form-icon" />
-                                Fecha de Subida
+                                Upload Date
                             </label>
                             <input
                                 type="date"
@@ -332,7 +332,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                                 className="form-input"
                             />
                             <small className="form-hint">
-                                Solo modificar si es necesario
+                                Only change if necessary
                             </small>
                         </div>
                     )}
@@ -341,7 +341,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                 <div className="drawing-form-column">
                     <label className="form-label">
                         <FiUploadCloud className="form-icon" />
-                        Archivo del Dibujo {!isEditing && '*'}
+                        Drawing File {!isEditing && '*'}
                     </label>
                     <div
                         className={`drawing-drop ${preview || fileInfo ? 'has-file' : ''}`}
@@ -352,7 +352,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                             <div className="drawing-preview-container">
                                 <img
                                     src={preview}
-                                    alt="Preview del dibujo"
+                                    alt="Drawing preview"
                                     onError={(e) => {
                                         console.error('Error cargando preview:', preview);
                                         e.target.onerror = null;
@@ -417,11 +417,11 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                                     className="drawing-drop-content"
                                 >
                                     <FiUploadCloud size={48} />
-                                    <h4>Arrastra un archivo aquí</h4>
-                                    <span>o haz clic para seleccionar</span>
+                                    <h4>Drag a file here</h4>
+                                    <span>or click to select</span>
                                     <div className="supported-formats">
                                         <FiCheck />
-                                        <small>Formatos soportados:</small>
+                                        <small>Supported formats:</small>
                                         <div className="format-tags">
                                             <span className="format-tag">.prt</span>
                                             <span className="format-tag">.sldprt</span>
@@ -431,7 +431,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                                             <span className="format-tag">.pdf</span>
                                             <span className="format-tag">.dwg</span>
                                         </div>
-                                        <small className="size-limit">Máx: 50MB</small>
+                                        <small className="size-limit">Max: 50MB</small>
                                     </div>
                                 </label>
                             </>
@@ -446,7 +446,7 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                     className="button-cancel"
                     onClick={() => onCancel && onCancel()}
                 >
-                    Cancelar
+                    Cancel
                 </button>
                 <button
                     type="submit"
@@ -456,10 +456,10 @@ export const DrawingForm = ({ dibujo, isEditing = false, onSuccess, bloqueId, on
                     {loading ? (
                         <>
                             <span className="spinner"></span>
-                            GUARDANDO...
+                            SAVING...
                         </>
                     ) : (
-                        isEditing ? 'ACTUALIZAR DIBUJO' : 'GUARDAR DIBUJO'
+                        isEditing ? 'UPDATE DRAWING' : 'SAVE DRAWING'
                     )}
                 </button>
             </div>

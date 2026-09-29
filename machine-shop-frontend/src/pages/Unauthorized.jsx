@@ -15,15 +15,15 @@ export const Unauthorized = () => {
                         <FiShield />
                     </div>
                     <h1>403</h1>
-                    <h2>Sin autorización</h2>
-                    <p>No tienes permiso para ver esta página. Si crees que es un error, contacta a un administrador.</p>
+                    <h2>Unauthorized</h2>
+                    <p>You don't have permission to view this page. If you think this is a mistake, contact an administrator.</p>
                     <div className="unauth-actions">
                         <button className="button-icon button-gray" onClick={() => navigate(-1)}>
                             <FiArrowLeft />
-                            Volver
+                            Back
                         </button>
                         <button className="button-icon button-red" onClick={() => navigate('/tickets')}>
-                            Ir a Tickets
+                            Go to Tickets
                         </button>
                     </div>
                 </div>

@@ -28,14 +28,14 @@ export const Login = () => {
             const res = await api.post("/login",
                 formData
             );
-            const loggedUser = login(res.data.token);
+            login(res.data.token);
             Swal.fire({
                 icon: "success",
                 title: "Welcome",
                 text: "Login successful",
                 confirmButtonColor: "#86030e"
             });
-            navigate(Number(loggedUser?.rolId) === 1 ? "/home" : "/tickets");
+            navigate("/home");
         } catch (error) {
             Swal.fire({
                 icon: "error",

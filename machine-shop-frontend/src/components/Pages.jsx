@@ -21,7 +21,7 @@ export const Pages = () => {
         <Routes>
             <Route path="/" element={<Login />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
-            <Route path="/Home" element={<Home />} />
+            <Route path="/Home" element={<ProtectedRoutes><Home /></ProtectedRoutes>} />
             <Route path="/metrics" element={<ProtectedRoutes roles={[1, 2]}><MetricsPage /></ProtectedRoutes>} />
             <Route path="/users" element={<ProtectedRoutes roles={[1]}><UsersPage /></ProtectedRoutes>} />
             <Route path='/tickets' element={<ProtectedRoutes roles={[1, 2]}><TicketsPage /></ProtectedRoutes>} />

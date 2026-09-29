@@ -42,20 +42,6 @@ const Sidebar = () => {
       {/* MENU */}
       <nav className="sidebar-menu">
 
-        {/* ITEM HOME - Sin submenú */}
-      {/*  <div className="sidebar-item">
-          <NavLink 
-            to="/Home" 
-            className={({ isActive }) => 
-              "sidebar-link " + (isActive ? "active" : "")
-            }
-          >
-            <FiHome className="sidebar-icon" />
-            {isOpen && <span>Home</span>}
-            {!isOpen && <span className="tooltip">Home</span>}
-          </NavLink>
-        </div>*/} 
-
         {/* ITEM USERS - Con submenú */}
         <div className="sidebar-item">
           <button
@@ -114,8 +100,8 @@ const Sidebar = () => {
             }
           >
             <FiBox className="sidebar-icon" />
-            {isOpen && <span>Inventario</span>}
-            {!isOpen && <span className="tooltip">Inventario</span>}
+            {isOpen && <span>Inventory</span>}
+            {!isOpen && <span className="tooltip">Inventory</span>}
           </NavLink>
         </div>
       </nav>

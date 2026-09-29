@@ -47,13 +47,27 @@ export const NotificationProvider = ({ children }) => {
 
     const handleNotification = (data) => {
       console.log('🔔 Notificación recibida:', data);
-      
-      // Filtrar por targetUserId: solo mostrar si no hay targetUserId (broadcast) 
-      // o si el targetUserId coincide con el usuario actual
-      if (data.targetUserId && data.targetUserId !== user.noEmp) {
-        return; // No es para este usuario
+
+      // Admins: reciben TODAS las notificaciones (propias y ajenas)
+      const isAdmin = Number(user?.rolId) === 1;
+      if (!isAdmin) {
+        const me = String(user.noEmp);
+        // Dirigida explícitamente a otro usuario: ignorar
+        if (data.targetUserId && String(data.targetUserId) !== me) {
+          return;
+        }
+        // Solo mostrar eventos de SUS tickets: solicitante o lista de dueños
+        const sol = data.solicitanteId;
+        const lista = Array.isArray(data.userIds) ? data.userIds.map(String) : [];
+        const esMio = (sol !== null && sol !== undefined && String(sol) === me) || lista.includes(me);
+        const tieneRef = data.ticketId || data.noParte || data.bloqueId || data.blockId
+          || data.dibujoId || data.programaId || data.ensembleId
+          || data.IdDibujo || data.IdPrograma || data.IdEnsamble
+          || sol !== null && sol !== undefined || lista.length > 0;
+        if (tieneRef && !esMio) return; // Evento de tickets ajenos: ignorar
+        if (!tieneRef && String(data.targetUserId) !== me) return; // Sin referencia y no dirigido a mí: ignorar
       }
-      
+
       const notification = {
         id: Date.now() + Math.random(),
         ...data,

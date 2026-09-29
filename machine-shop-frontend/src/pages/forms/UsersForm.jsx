@@ -76,13 +76,13 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
         }
 
         await api.put(`/usuariosUpdate`, dataToSend);
-        showToast.success("Usuario actualizado correctamente", {
+        showToast.success("User updated successfully", {
           duration: 3000,
           position: "top-right",
         });
       } else {
         await api.post(`/usuariosInsert`, formData);
-        showToast.success("Usuario agregado correctamente", {
+        showToast.success("User added successfully", {
           duration: 3000,
           position: "top-right",
         });
@@ -105,7 +105,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
 
     } catch (error) {
       console.error('Error al procesar usuario.', error);
-      const errorMessage = error.response?.data?.error || "Error al procesar el usuario";
+      const errorMessage = error.response?.data?.error || "Error processing user";
       showToast.error(errorMessage, {
         duration: 5000,
         position: "top-right",
@@ -120,7 +120,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
       <div className="form-grid">
         <div className="form-column">
           <div className="form-group">
-            <label className="form-label">Numero de Empleado</label>
+            <label className="form-label">Employee Number</label>
             <input
               type="text"
               name="NoEmpleado"
@@ -130,11 +130,11 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
               required
               autoFocus={!isEditing}
               disabled={isEditing}
-              placeholder="Ej: 05050"
+              placeholder="Ex: 05050"
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Nombre</label>
+            <label className="form-label">Name</label>
             <input
               type="text"
               name="Nombre"
@@ -142,11 +142,11 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
               onChange={handleChange}
               className="form-input"
               required
-              placeholder="Ej: Juan Perez"
+              placeholder="Ex: Juan Perez"
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Correo</label>
+            <label className="form-label">Email</label>
             <input
               type="email"
               name="Correo"
@@ -154,12 +154,12 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
               onChange={handleChange}
               className="form-input"
               required
-              placeholder="Ej: juanpz@gmail.com"
+              placeholder="Ex: juanpz@gmail.com"
             />
           </div>
           {!isEditing && (
             <div className="form-group">
-              <label className="form-label">Contraseña</label>
+              <label className="form-label">Password</label>
               <input
                 type="password"
                 name="Contraseña"
@@ -173,7 +173,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
             </div>
           )}
           <div className="form-group">
-            <label className="form-label">Rol</label>
+            <label className="form-label">Role</label>
             <Select
               options={rolesOptions}
               value={rolesOptions.find(o => o.value === formData.RolId)}
@@ -189,7 +189,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Área</label>
+            <label className="form-label">Area</label>
             <Select
               options={areasOptions}
               value={areasOptions.find(o => o.value === formData.AreaId)}
@@ -200,7 +200,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
                 }))
               }}
               classNamePrefix="react-select"
-              placeholder="Seleccione un área"
+              placeholder="Select an area"
               isClearable
             />
           </div>
@@ -209,7 +209,7 @@ export const UsersForm = ({ usuario, isEditing = false, onSuccess }) => {
 
       <div className="form-actions">
         <button type="submit" className="button-icon button-green" disabled={loading}>
-          {loading ? 'PROCESANDO...' : (isEditing ? 'ACTUALIZAR' : 'AGREGAR')}
+          {loading ? 'PROCESSING...' : (isEditing ? 'UPDATE' : 'ADD')}
         </button>
       </div>
     </form>

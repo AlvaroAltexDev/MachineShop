@@ -12,13 +12,13 @@ import {
 import { showToast } from 'nextjs-toast-notify';
 
 const TIPO_META = {
-    creacion: { label: 'Creación', icon: <FiPlus />, cls: 'ev-creacion' },
-    cambio_estado: { label: 'Cambio de estado', icon: <FiFlag />, cls: 'ev-estado' },
-    edicion: { label: 'Edición', icon: <FiEdit2 />, cls: 'ev-edicion' },
-    bloque: { label: 'Bloque', icon: <FiBox />, cls: 'ev-bloque' },
-    papelera: { label: 'Papelera', icon: <FiTrash2 />, cls: 'ev-papelera' },
-    restaurar: { label: 'Restaurado', icon: <FiRefreshCw />, cls: 'ev-restaurar' },
-    cierre: { label: 'Cierre', icon: <FiCheckCircle />, cls: 'ev-cierre' },
+    creacion: { label: 'Creation', icon: <FiPlus />, cls: 'ev-creacion' },
+    cambio_estado: { label: 'Status change', icon: <FiFlag />, cls: 'ev-estado' },
+    edicion: { label: 'Edit', icon: <FiEdit2 />, cls: 'ev-edicion' },
+    bloque: { label: 'Block', icon: <FiBox />, cls: 'ev-bloque' },
+    papelera: { label: 'Trash', icon: <FiTrash2 />, cls: 'ev-papelera' },
+    restaurar: { label: 'Restored', icon: <FiRefreshCw />, cls: 'ev-restaurar' },
+    cierre: { label: 'Close', icon: <FiCheckCircle />, cls: 'ev-cierre' },
 };
 
 const metaFor = (ev) => TIPO_META[ev?.TipoEvento] || TIPO_META.cambio_estado;
@@ -40,7 +40,7 @@ export const TicketHistoryPage = () => {
             setHistorial(Array.isArray(res.data) ? res.data : []);
         } catch (error) {
             console.error('Error al cargar historial:', error);
-            showToast.error('Error al cargar el historial', { duration: 3000, position: "top-right" });
+            showToast.error('Error loading history', { duration: 3000, position: "top-right" });
         }
     }, [id]);
 
@@ -91,7 +91,7 @@ export const TicketHistoryPage = () => {
                         <button
                             className="button-icon button-gray"
                             onClick={() => navigate('/tickets')}
-                            title="Volver a tickets"
+                            title="Back to tickets"
                             style={{ minWidth: 'auto', padding: '0 14px' }}
                         >
                             <FiArrowLeft />
@@ -101,18 +101,18 @@ export const TicketHistoryPage = () => {
                         </div>
                         <div>
                             <h1 className="header-title">
-                                Historial #{ticket ? String(ticket.IdTicket).padStart(4, '0') : id}
+                                History #{ticket ? String(ticket.IdTicket).padStart(4, '0') : id}
                             </h1>
                             <p className="header-subtitle">
-                                {ticket?.SolicitanteNombre ? `Solicitado por ${ticket.SolicitanteNombre}` : 'Movimientos del ticket'}
-                                {ticket?.NombreEstado ? ` · Estado actual: ${ticket.NombreEstado}` : ''}
+                                {ticket?.SolicitanteNombre ? `Requested by ${ticket.SolicitanteNombre}` : 'Ticket activity'}
+                                {ticket?.NombreEstado ? ` · Current status: ${ticket.NombreEstado}` : ''}
                             </p>
                         </div>
                     </div>
                     <div className="header-stats">
                         <div className="stat-item">
                             <span className="stat-number">{historial.length}</span>
-                            <span className="stat-label">Eventos</span>
+                            <span className="stat-label">Events</span>
                         </div>
                     </div>
                 </div>
@@ -128,7 +128,7 @@ export const TicketHistoryPage = () => {
                         >
                             {tiposDisponibles.map(t => (
                                 <option key={t} value={t}>
-                                    {t === 'todos' ? 'Todos los eventos' : (TIPO_META[t]?.label || t)}
+                                    {t === 'todos' ? 'All events' : (TIPO_META[t]?.label || t)}
                                 </option>
                             ))}
                         </select>
@@ -139,17 +139,17 @@ export const TicketHistoryPage = () => {
                 <div className="details-card-modern">
                     <div className="card-header-modern">
                         <span className="card-icon"><FiClock /></span>
-                        <h4>Línea de tiempo</h4>
-                        <span className="blocks-progress">{eventosFiltrados.length} evento{eventosFiltrados.length !== 1 ? 's' : ''}</span>
+                        <h4>Timeline</h4>
+                        <span className="blocks-progress">{eventosFiltrados.length} event{eventosFiltrados.length !== 1 ? 's' : ''}</span>
                     </div>
                     <div className="card-body-modern">
                         {loading ? (
-                            <div className="loading-state">Cargando historial...</div>
+                            <div className="loading-state">Loading history...</div>
                         ) : eventosFiltrados.length === 0 ? (
                             <div className="empty-state-tickets">
                                 <FiClock size={48} />
-                                <h3>Sin eventos</h3>
-                                <p>No hay movimientos registrados para este ticket</p>
+                                <h3>No events</h3>
+                                <p>No activity recorded for this ticket</p>
                             </div>
                         ) : (
                             <div className="progress-track ticket-history-track">
@@ -175,7 +175,7 @@ export const TicketHistoryPage = () => {
                                                 )}
                                                 <div className="hist-usuario">
                                                     <FiUser size={12} />
-                                                    <span>{ev.UsuarioNombre || (ev.UsuarioId ? `#${ev.UsuarioId}` : 'Sistema')}</span>
+                                                    <span>{ev.UsuarioNombre || (ev.UsuarioId ? `#${ev.UsuarioId}` : 'System')}</span>
                                                 </div>
                                             </div>
                                         </div>

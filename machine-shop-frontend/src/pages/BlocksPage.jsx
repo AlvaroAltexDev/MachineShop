@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
@@ -22,9 +22,37 @@ export const BlocksPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null);
 
-  // ✅ Paginación
+  // ✅ Paginación dinámica: UNA sola fila según el ancho real del grid.
+  // Así al colapsar/expandir el sidebar los blocks siempre llenan la fila
+  // en cualquier pantalla, sin huecos ni cards huérfanas debajo.
+  const gridRef = useRef(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(6);
+
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const tracks = getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean);
+      const cols = tracks.length > 0 && tracks[0] !== 'none' ? tracks.length : 1;
+      setItemsPerPage(prev => (prev === cols ? prev : cols));
+    };
+    // Medir tras el layout inicial para que el valor sea el real
+    const t = setTimeout(update, 0);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+    };
+  }, []);
+
+
+  // Si cambia el tamaño de página, volver a la 1 para no quedar en página vacía
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [itemsPerPage]);
 
   const IMAGE_BASE_URL = `${api.defaults.baseURL}/uploads/bloques/`;
 
@@ -62,7 +90,7 @@ export const BlocksPage = () => {
     } catch (error) {
       console.error("Error al obtener bloques:", error);
       setBlocks([]);
-      showToast.error("Error al obtener bloques", {
+      showToast.error("Error fetching blocks", {
         position: "top-right",
         duration: 3000,
       });
@@ -91,14 +119,14 @@ export const BlocksPage = () => {
   const handleDelete = async (NoParte) => {
     try {
       const result = await Swal.fire({
-        title: '¿Estás seguro?',
-        html: `¿Deseas eliminar al block <strong>${NoParte || ''}</strong>?<br>Esta acción no se puede deshacer.`,
+        title: 'Are you sure?',
+        html: `Do you want to delete block <strong>${NoParte || ''}</strong>?<br>This action cannot be undone.`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#D71928',
         cancelButtonColor: '#64748b',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
+        confirmButtonText: 'Yes, delete',
+        cancelButtonText: 'Cancel',
         background: '#3F3F42',
         color: '#fff',
         customClass: {
@@ -120,7 +148,7 @@ export const BlocksPage = () => {
 
     } catch (error) {
       console.error(error);
-      const errorMessage = error.response?.data?.error || 'Error al eliminar participante';
+      const errorMessage = error.response?.data?.error || 'Error deleting block';
       showToast.error(errorMessage, {
         duration: 4000,
         position: "top-right",
@@ -157,7 +185,7 @@ export const BlocksPage = () => {
       <Navbar />
       {/* ✅ Renderizar Sidebar solo si es admin */}
       {isAdmin && <Sidebar />}
-      
+
       {/* ✅ Agregar clase para ajustar el contenedor cuando no hay sidebar */}
       <div className={`page-container ${!isAdmin ? 'full-width' : ''}`}>
         {/* HEADER */}
@@ -186,7 +214,7 @@ export const BlocksPage = () => {
         </div>
 
         {/* GRID DE BLOQUES */}
-        <div className="blocks-grid">
+        <div className="blocks-grid" ref={gridRef}>
           {loading ? (
             <div className="loading-state">Loading blocks...</div>
           ) : filteredBlocks.length === 0 ? (
@@ -249,7 +277,7 @@ export const BlocksPage = () => {
                     <div className="block-title-row">
                       <h2 title={block.NoParte || 'N/A'}>{block.NoParte || 'N/A'}</h2>
                       <span className={`conector-tag ${Number(block.ConectorFisico) === 1 ? 'has-conector' : 'no-conector'}`}>
-                        {Number(block.ConectorFisico) === 1 ? (<><FiCheckCircle className="inv-check" /> Conector físico</>) : '❌ Sin conector'}
+                        {Number(block.ConectorFisico) === 1 ? (<><FiCheckCircle className="inv-check" /> Physical connector</>) : '❌ No connector'}
                       </span>
                     </div>
 

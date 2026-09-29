@@ -96,12 +96,20 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
         e.preventDefault();
     };
 
+    // Conectores que no llevan terminal: se pone N/A (Id 3) automáticamente
+    const CONECTORES_SIN_TERMINAL = ['3', '4', '5', '6'];
+    const TERMINAL_NA_ID = '3';
+
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value
-        }));
+        setFormData((prev) => {
+            const next = { ...prev, [name]: value };
+            // Al elegir conector Insulada / Bandera / Anillo / Medio Insulada → terminal N/A
+            if (name === 'TipoConectorId' && CONECTORES_SIN_TERMINAL.includes(String(value))) {
+                next.TipoTerminalId = TERMINAL_NA_ID;
+            }
+            return next;
+        });
     };
 
     // ✅ Manejar el cambio de ConectorFisico
@@ -154,7 +162,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                 await api.put(`/bloquesUpdate`, dataToSend, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
-                showToast.success("Block actualizado correctamente", {
+                showToast.success("Block updated successfully", {
                     duration: 3000,
                     position: "top-right",
                 });
@@ -162,7 +170,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                 await api.post(`/bloquesInsert`, dataToSend, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
-                showToast.success("Block agregado correctamente", {
+                showToast.success("Block added successfully", {
                     duration: 3000,
                     position: "top-right",
                 });
@@ -189,7 +197,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
         } catch (error) {
             console.error('Error al procesar block.', error);
             console.error('Detalles del error:', error.response?.data);
-            const errorMessage = error.response?.data?.error || "Error al procesar el block";
+            const errorMessage = error.response?.data?.error || "Error processing block";
             showToast.error(errorMessage, {
                 duration: 5000,
                 position: "top-right",
@@ -226,7 +234,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Cant Pines</label>
+                        <label className="form-label">Pin Count</label>
                         <input
                             type="text"
                             name="CantidadPines"
@@ -238,7 +246,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Cant Pines de Presencia</label>
+                        <label className="form-label">Presence Pin Count</label>
                         <input
                             type="number"
                             name="CantPinPresencia"
@@ -251,7 +259,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Tipo Conector</label>
+                        <label className="form-label">Connector Type</label>
                         <select
                             name="TipoConectorId"
                             value={formData.TipoConectorId}
@@ -259,7 +267,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                             className="form-input"
                             required
                         >
-                            <option value="">Seleccione un tipo de conector</option>
+                            <option value="">Select a connector type</option>
                             {tipoConectorOptions.map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
@@ -269,7 +277,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Tipo Terminal</label>
+                        <label className="form-label">Terminal Type</label>
                         <select
                             name="TipoTerminalId"
                             value={formData.TipoTerminalId}
@@ -277,7 +285,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                             className="form-input"
                             required
                         >
-                            <option value="">Seleccione un tipo de terminal</option>
+                            <option value="">Select a terminal type</option>
                             {tipoTerminalOptions.map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
@@ -295,7 +303,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                         <div className="conector-fisico-header">
                             <span className="conector-fisico-title">
                                 <FiBox className="conector-fisico-icon" />
-                                Conector Físico
+                                Physical Connector
                             </span>
                             {isAdmin && isEditing && (
                                 <span className="admin-badge">
@@ -314,22 +322,22 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                                 />
                                 <span className="switch-slider"></span>
                                 <span className="switch-label">
-                                    <span className="switch-text">¿Tiene conector físico?</span>
+                                    <span className="switch-text">Has physical connector?</span>
                                     <span className="switch-status">
-                                        {formData.ConectorFisico === 1 ? 'Activado' : 'Desactivado'}
+                                        {formData.ConectorFisico === 1 ? 'Enabled' : 'Disabled'}
                                     </span>
                                 </span>
                             </label>
                             {!isAdmin && isEditing && (
                                 <div className="conector-fisico-hint warning">
                                     <FiAlertTriangle />
-                                    Solo los administradores pueden cambiar esta opción
+                                    Only administrators can change this option
                                 </div>
                             )}
                             {isAdmin && isEditing && (
                                 <div className="conector-fisico-hint success">
                                     <FiCheckCircle />
-                                    Tienes permisos de administrador para modificar esta opción
+                                    You have administrator permissions to modify this option
                                 </div>
                             )}
                         </div>
@@ -398,7 +406,7 @@ export const BlocksForm = ({ block, isEditing = false, onSuccess, onCancel }) =>
                         onClick={onCancel}
                         disabled={loading}
                     >
-                        Cancelar
+                        Cancel
                     </button>
                 )}
                 <button

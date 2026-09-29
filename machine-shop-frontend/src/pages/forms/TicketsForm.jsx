@@ -19,7 +19,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
     // 👈 Estados para el modal de bloques
     const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
     const [selectedBlockIndex, setSelectedBlockIndex] = useState(null);
-    const [shouldRefreshBlocks, setShouldRefreshBlocks] = useState(false);
+    const detallesListRef = useRef(null);
 
     // ✅ Estado del formulario
     const [formData, setFormData] = useState({
@@ -48,18 +48,21 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
         });
     }, [formData.Detalles]);
 
-    // Cargar bloques para el select
+    // Cargar bloques para el select (devuelve la lista para reutilizarla)
     const fetchBlocks = async () => {
         setLoadingBlocks(true);
         try {
             const response = await api.get('/bloquesSelect');
-            setBlocks(response.data || []);
+            const data = response.data || [];
+            setBlocks(data);
+            return data;
         } catch (error) {
             console.error('Error al cargar bloques:', error);
             showToast.error('Error al cargar los bloques', {
                 duration: 3000,
                 position: "top-right",
             });
+            return [];
         } finally {
             setLoadingBlocks(false);
         }
@@ -69,13 +72,15 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
         fetchBlocks();
     }, []);
 
-    // ✅ Recargar bloques cuando se cierre el modal
+    // Al agregar una fila, bajar el scroll al último agregado
+    const detallesCountRef = useRef(formData.Detalles.length);
     useEffect(() => {
-        if (shouldRefreshBlocks) {
-            fetchBlocks();
-            setShouldRefreshBlocks(false);
+        const prev = detallesCountRef.current;
+        detallesCountRef.current = formData.Detalles.length;
+        if (formData.Detalles.length > prev && detallesListRef.current) {
+            detallesListRef.current.scrollTop = detallesListRef.current.scrollHeight;
         }
-    }, [shouldRefreshBlocks]);
+    }, [formData.Detalles.length]);
 
     // Cargar prioridades
     useEffect(() => {
@@ -142,7 +147,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
     // Eliminar una línea de detalle
     const removeDetalle = (index) => {
         if (formData.Detalles.length <= 1) {
-            showToast.warning('Debe tener al menos un detalle', {
+            showToast.warning('Must have at least one detail', {
                 duration: 3000,
                 position: "top-right",
             });
@@ -182,14 +187,30 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
         setIsBlockModalOpen(true);
     };
 
-    // ✅ Cuando se crea un nuevo bloque exitosamente
-    const handleBlockCreated = () => {
+    // ✅ Cuando se crea un nuevo bloque: se recarga la lista (sin tocar el
+    // resto del formulario) y se auto-selecciona en la fila que abrió el modal
+    const handleBlockCreated = async () => {
         setIsBlockModalOpen(false);
-        setShouldRefreshBlocks(true);
-        showToast.success('Bloque creado correctamente. Selecciónalo en el campo.', {
-            duration: 3000,
-            position: "top-right",
-        });
+        const fresh = await fetchBlocks();
+        const newest = fresh && fresh.length > 0 ? fresh[0].NoParte : null;
+        if (newest && selectedBlockIndex !== null) {
+            setFormData(prev => ({
+                ...prev,
+                Detalles: prev.Detalles.map((d, i) =>
+                    i === selectedBlockIndex ? { ...d, BloqueId: newest } : d
+                )
+            }));
+            showToast.success(`Block ${newest} created and selected`, {
+                duration: 3000,
+                position: "top-right",
+            });
+        } else if (newest) {
+            showToast.success('Block created successfully. Select it in the field.', {
+                duration: 3000,
+                position: "top-right",
+            });
+        }
+        setSelectedBlockIndex(null);
     };
 
     const blockOptions = blocks.map(block => ({
@@ -278,7 +299,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
         try {
             // Validaciones básicas
             if (!formData.FechaDeseada) {
-                showToast.error('Por favor seleccione una fecha deseada', {
+                showToast.error('Please select a desired date', {
                     duration: 3000,
                     position: "top-right",
                 });
@@ -287,7 +308,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
             }
 
             if (!formData.PrioridadId) {
-                showToast.error('Por favor seleccione una prioridad', {
+                showToast.error('Please select a priority', {
                     duration: 3000,
                     position: "top-right",
                 });
@@ -304,7 +325,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                 const areaId = user?.areaId;
 
                 if (!areaId) {
-                    showToast.error('No se pudo determinar el área del usuario', {
+                    showToast.error('Could not determine user area', {
                         duration: 3000,
                         position: "top-right",
                     });
@@ -316,8 +337,8 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
 
                 if (tieneCritico) {
                     showToast.error(
-                        '❌ Ya existe un ticket CRÍTICO activo en tu área. ' +
-                        'No se pueden crear múltiples tickets críticos por área.',
+                        '❌ A CRITICAL ticket already exists in your area. ' +
+                        'Multiple critical tickets per area are not allowed.',
                         {
                             duration: 6000,
                             position: "top-right",
@@ -342,8 +363,8 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
 
                         if (!currentTicketCritico) {
                             showToast.error(
-                                '❌ Ya existe un ticket CRÍTICO activo en tu área. ' +
-                                'No se pueden crear múltiples tickets críticos por área.',
+                                '❌ A CRITICAL ticket already exists in your area. ' +
+                                'Multiple critical tickets per area are not allowed.',
                                 {
                                     duration: 6000,
                                     position: "top-right",
@@ -362,7 +383,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
             );
 
             if (detallesInvalidos) {
-                showToast.error('Todos los detalles deben tener un bloque y cantidad válida', {
+                showToast.error('All details must have a valid block and quantity', {
                     duration: 3000,
                     position: "top-right",
                 });
@@ -386,14 +407,14 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
             let response;
             if (isEditing && ticket) {
                 response = await api.put(`/ticketsUpdate/${ticket.IdTicket}`, dataToSend);
-                showToast.success('Ticket actualizado correctamente', {
+                showToast.success('Ticket updated successfully', {
                     duration: 3000,
                     position: "top-right",
                 });
             } else {
                 response = await api.post('/ticketsInsert', dataToSend);
-                showToast.success('Ticket creado correctamente', {
-                    duration: 3000,
+                showToast.success(response.data?.message || 'Ticket created successfully', {
+                    duration: 4000,
                     position: "top-right",
                 });
             }
@@ -406,7 +427,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
             console.error('❌ Error al procesar ticket:', error);
             console.error('Detalles:', error.response?.data);
 
-            const errorMessage = error.response?.data?.error || 'Error al procesar el ticket';
+            const errorMessage = error.response?.data?.error || 'Error processing ticket';
             showToast.error(errorMessage, {
                 duration: 5000,
                 position: "top-right",
@@ -416,13 +437,23 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
         }
     };
 
+    // Borrador: resumen de bloques agregados (evitar repetidos y ver faltantes)
+    const conteoBloques = {};
+    formData.Detalles.forEach(d => {
+        if (d.BloqueId) conteoBloques[d.BloqueId] = (conteoBloques[d.BloqueId] || 0) + 1;
+    });
+    const bloquesRepetidos = Object.keys(conteoBloques).filter(k => conteoBloques[k] > 1);
+    const filasSinBloque = formData.Detalles.filter(d => !d.BloqueId).length;
+    const totalPiezas = formData.Detalles.reduce((a, d) => a + (parseInt(d.Cantidad, 10) || 0), 0);
+
     return (
         <>
+            <div className="tickets-layout">
             <form className="form-container tickets-form" onSubmit={handleSubmit}>
                 {/* Título de la sección */}
                 <h3 className="form-section-title">
                     <FiFileText />
-                    Información General
+                    General Information
                 </h3>
 
                 <div className="tickets-form-row">
@@ -431,11 +462,11 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                         <div className="form-group">
                             <label className="form-label">
                                 <FiUser className="form-icon" />
-                                Solicitante
+                                Requester
                             </label>
                             <input
                                 type="text"
-                                value={user?.nombre || 'Usuario actual'}
+                                value={user?.nombre || 'Current user'}
                                 className="form-input"
                                 disabled
                             />
@@ -444,7 +475,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                         <div className="form-group">
                             <label className="form-label">
                                 <FiCalendar className="form-icon" />
-                                Fecha Deseada *
+                                Desired Date *
                             </label>
                             <input
                                 type="date"
@@ -456,7 +487,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                                 min={new Date().toISOString().split('T')[0]}
                             />
                             <small className="form-hint">
-                                Fecha en la que deseas recibir los conectores
+                                Date you want to receive the connectors
                             </small>
                         </div>
                     </div>
@@ -466,7 +497,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                         <div className="form-group">
                             <label className="form-label">
                                 <FiFlag className="form-icon" />
-                                Prioridad *
+                                Priority *
                             </label>
                             <select
                                 name="PrioridadId"
@@ -475,7 +506,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                                 className="form-input"
                                 required
                             >
-                                <option value="">Seleccione una prioridad</option>
+                                <option value="">Select a priority</option>
                                 {prioridadOptions.map((option) => (
                                     <option key={option.value} value={option.value}>
                                         {option.label}
@@ -484,7 +515,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                             </select>
                             {formData.PrioridadId === getCriticaId() && !isEditing && (
                                 <small className="form-hint" style={{ color: '#dc3545' }}>
-                                    ⚠️ Al seleccionar CRÍTICO, se verificará si ya existe uno en tu área
+                                    ⚠️ Selecting CRITICAL will check if one already exists in your area
                                 </small>
                             )}
                         </div>
@@ -492,7 +523,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                         <div className="form-group">
                             <label className="form-label">
                                 <FiFileText className="form-icon" />
-                                Descripción
+                                Description
                             </label>
                             <textarea
                                 name="Descripcion"
@@ -500,7 +531,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                                 onChange={handleChange}
                                 className="form-textarea"
                                 rows="3"
-                                placeholder="Describe brevemente el motivo del ticket..."
+                                placeholder="Briefly describe the reason for the ticket..."
                             />
                         </div>
                     </div>
@@ -511,7 +542,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                     <div className="form-section-header">
                         <h3 className="form-section-title">
                             <FiPlus />
-                            Bloques Solicitados
+                            Requested Blocks
                         </h3>
                         <button
                             type="button"
@@ -520,27 +551,27 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                             disabled={loadingBlocks}
                         >
                             <FiPlus />
-                            Agregar Bloque
+                            Add Block
                         </button>
                     </div>
 
                     {loadingBlocks ? (
-                        <div className="loading-state">Cargando bloques...</div>
+                        <div className="loading-state">Loading blocks...</div>
                     ) : (
-                        <div className="detalles-list">
+                        <div className="detalles-list" ref={detallesListRef}>
                             {formData.Detalles.map((detalle, index) => (
                                 <div className="detalle-item" key={index}>
                                     <div className="detalle-row">
                                         <div className="detalle-number">{index + 1}</div>
                                         <div className="detalle-fields">
                                             <div className="form-group">
-                                                <label>Bloque/Conector *</label>
+                                                <label>Block/Connector *</label>
                                                 <div className="select-with-button">
                                                     <Select
                                                         options={blockOptions}
                                                         value={getSelectedOption(detalle.BloqueId)}
                                                         onChange={(option) => handleBlockSelect(index, option)}
-                                                        placeholder="Buscar por número de parte..."
+                                                        placeholder="Search by part number..."
                                                         isClearable
                                                         styles={customSelectStyles}
                                                         className="react-select-container"
@@ -549,14 +580,14 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                                                         menuPosition="fixed"
                                                         menuPlacement="auto"
                                                         menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                                                        noOptionsMessage={() => 'No se encontraron bloques'}
-                                                        loadingMessage={() => 'Cargando bloques...'}
+                                                        noOptionsMessage={() => 'No blocks found'}
+                                                        loadingMessage={() => 'Loading blocks...'}
                                                     />
                                                     <button
                                                         type="button"
                                                         className="add-block-btn"
                                                         onClick={() => handleOpenBlockModal(index)}
-                                                        title="Agregar nuevo bloque"
+                                                        title="Add new block"
                                                     >
                                                         <FiPlusCircle size={20} />
                                                     </button>
@@ -565,24 +596,24 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                                                     <div className="block-mini-status">
                                                         <span
                                                             className={`mini-dot mini-drawings ${toBoolFlag(blockStatusMap[detalle.BloqueId]?.DibujosCompleto) ? 'on' : ''}`}
-                                                            title="Dibujos completos"
+                                                            title="Drawings complete"
                                                         />
                                                         <span className="mini-label">D</span>
                                                         <span
                                                             className={`mini-dot mini-programs ${toBoolFlag(blockStatusMap[detalle.BloqueId]?.ProgramasCompleto) ? 'on' : ''}`}
-                                                            title="Programas completos"
+                                                            title="Programs complete"
                                                         />
                                                         <span className="mini-label">P</span>
                                                         <span
                                                             className={`mini-dot mini-ensamble ${toBoolFlag(blockStatusMap[detalle.BloqueId]?.EnsambleCompleto) ? 'on' : ''}`}
-                                                            title="Ensamble completo"
+                                                            title="Assembly complete"
                                                         />
                                                         <span className="mini-label">E</span>
                                                     </div>
                                                 )}
                                             </div>
                                             <div className="form-group">
-                                                <label>Cantidad *</label>
+                                                <label>Quantity *</label>
                                                 <input
                                                     type="number"
                                                     min="1"
@@ -597,7 +628,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                                             type="button"
                                             className="remove-detalle-btn"
                                             onClick={() => removeDetalle(index)}
-                                            title="Eliminar detalle"
+                                            title="Remove detail"
                                         >
                                             <FiTrash2 />
                                         </button>
@@ -607,14 +638,14 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
 
                             {formData.Detalles.length === 0 && (
                                 <div className="empty-detalles">
-                                    <p>No hay bloques agregados</p>
+                                    <p>No blocks added</p>
                                     <button
                                         type="button"
                                         className="button-add-small"
                                         onClick={addDetalle}
                                     >
                                         <FiPlus />
-                                        Agregar Bloque
+                                        Add Block
                                     </button>
                                 </div>
                             )}
@@ -630,7 +661,7 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                         onClick={onCancel}
                         disabled={loading || checkingCritico}
                     >
-                        Cancelar
+                        Cancel
                     </button>
                     <button
                         type="submit"
@@ -640,25 +671,70 @@ export const TicketsForm = ({ ticket, isEditing = false, onSuccess, onCancel }) 
                         {loading ? (
                             <>
                                 <span className="spinner"></span>
-                                {isEditing ? 'ACTUALIZANDO...' : 'CREANDO TICKET...'}
+                                {isEditing ? 'UPDATING...' : 'CREATING TICKET...'}
                             </>
                         ) : checkingCritico ? (
                             <>
                                 <span className="spinner"></span>
-                                VERIFICANDO...
+                                VERIFYING...
                             </>
                         ) : (
-                            isEditing ? 'ACTUALIZAR TICKET' : 'CREAR TICKET'
+                            isEditing ? 'UPDATE TICKET' : 'CREATE TICKET'
                         )}
                     </button>
                 </div>
             </form>
 
+                {/* BORRADOR lateral: lo que llevas agregado */}
+                <aside className="tickets-draft">
+                    <div className="draft-header">
+                        <FiFileText />
+                        <h4>Draft</h4>
+                        <span className="draft-count">{formData.Detalles.filter(d => d.BloqueId).length}/{formData.Detalles.length}</span>
+                    </div>
+                    {totalPiezas > 0 && (
+                        <div className="draft-total">Total pieces: <strong>×{totalPiezas}</strong></div>
+                    )}
+                    {formData.Detalles.length === 0 || formData.Detalles.every(d => !d.BloqueId) ? (
+                        <p className="draft-empty">No blocks added yet.<br />Each block you choose appears here.</p>
+                    ) : (
+                        <div className="draft-list">
+                            {formData.Detalles.map((d, i) => {
+                                if (!d.BloqueId) return null;
+                                const st = blockStatusMap[d.BloqueId];
+                                const repetido = conteoBloques[d.BloqueId] > 1;
+                                return (
+                                    <div key={i} className={`draft-item ${repetido ? 'dup' : ''}`}>
+                                        <span className="draft-num">{i + 1}</span>
+                                        <span className="draft-name" title={d.BloqueId}>{d.BloqueId}</span>
+                                        <span className="draft-qty">×{d.Cantidad}</span>
+                                        {st && (
+                                            <span className="draft-dots">
+                                                <span className={`mini-dot mini-drawings ${toBoolFlag(st?.DibujosCompleto) ? 'on' : ''}`} title="Dibujos" />
+                                                <span className={`mini-dot mini-programs ${toBoolFlag(st?.ProgramasCompleto) ? 'on' : ''}`} title="Programas" />
+                                                <span className={`mini-dot mini-ensamble ${toBoolFlag(st?.EnsambleCompleto) ? 'on' : ''}`} title="Ensamble" />
+                                            </span>
+                                        )}
+                                        {repetido && <span className="draft-dup" title="This block is duplicated">!</span>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                    {filasSinBloque > 0 && (
+                        <p className="draft-warn">You still need to choose a block in {filasSinBloque} row{filasSinBloque !== 1 ? 's' : ''}.</p>
+                    )}
+                    {bloquesRepetidos.length > 0 && (
+                        <p className="draft-warn dup">Duplicated: {bloquesRepetidos.join(', ')}</p>
+                    )}
+                </aside>
+            </div>
+
             {/* ✅ MODAL PARA AGREGAR NUEVO BLOQUE */}
             <Modal
                 isOpen={isBlockModalOpen}
                 onClose={() => setIsBlockModalOpen(false)}
-                title="Agregar Nuevo Bloque/Conector"
+                title="Add New Block/Connector"
                 size="large"
             >
                 <BlocksForm

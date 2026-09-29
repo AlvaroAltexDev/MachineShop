@@ -9,12 +9,7 @@ import { TicketsDetails } from './details/TicketsDetails';
 import api from '../api/api';
 import socket from '../api/socket';
 import { AuthContext } from '../context/AuthProvider';
-import {
-    FiUser, FiCalendar, FiFlag, FiFileText, FiArrowRight, FiPlus,
-    FiCheckCircle, FiClock, FiAlertCircle, FiPackage, FiBox,
-    FiChevronLeft, FiChevronRight, FiTrash2, FiEdit2, FiEye,
-    FiFilter, FiX, FiSearch, FiRefreshCw, FiDelete, FiArchive
-} from "react-icons/fi";
+import { FiUser, FiCalendar, FiFlag, FiFileText, FiArrowRight, FiPlus, FiCheckCircle, FiClock, FiAlertCircle, FiPackage, FiBox, FiChevronLeft, FiChevronRight, FiTrash2, FiEdit2, FiEye, FiFilter, FiX, FiSearch, FiRefreshCw, FiDelete, FiArchive } from "react-icons/fi";
 import { MdModeEdit } from "react-icons/md";
 import { showToast } from 'nextjs-toast-notify';
 import Swal from "sweetalert2";
@@ -56,9 +51,9 @@ export const TicketsPage = () => {
 
     // Map para obtener el nombre del estado por ID
     const getEstadoNombre = (estadoId) => {
-        if (!estados.length) return 'Sin estado';
+        if (!estados.length) return 'No status';
         const estado = estados.find(e => e.IdEstado === estadoId);
-        return estado ? estado.NombreEstado : 'Sin estado';
+        return estado ? estado.NombreEstado : 'No status';
     };
 
     // Map para obtener el estado completo por ID
@@ -275,6 +270,17 @@ export const TicketsPage = () => {
         });
     };
 
+    // MATERIALES se marca solo si cada bloque tiene todos sus programas con
+    // material asignado, stock suficiente y confirmación explícita.
+    const hasAllMaterialesComplete = (ticket) => {
+        if (!ticket.Detalles || ticket.Detalles.length === 0) return false;
+        return ticket.Detalles.every(detalle => {
+            const noParte = detalle.NoParte || detalle.BloqueId;
+            const status = blockStatuses[noParte];
+            return status?.materialesOk === true;
+        });
+    };
+
     // Helper para normalizar nombres de estados (quitar acentos, mayúsculas)
     const normalizeStateName = (name) => {
         if (!name) return '';
@@ -382,7 +388,7 @@ export const TicketsPage = () => {
             });
         } catch (error) {
             console.error('Error al cargar tickets:', error);
-            showToast.error("Error al cargar los tickets", {
+            showToast.error("Error loading tickets", {
                 position: "top-right",
                 duration: 3000,
             });
@@ -424,6 +430,13 @@ export const TicketsPage = () => {
         };
         socket.on('bloqueStatusActualizado', handleBlockStatus);
         return () => socket.off('bloqueStatusActualizado', handleBlockStatus);
+    }, []);
+
+    // Refrescar apartados cuando cambia el inventario de blocks
+    useEffect(() => {
+        const handleInvBlocks = () => fetchTickets();
+        socket.on('bloqueInventarioActualizado', handleInvBlocks);
+        return () => socket.off('bloqueInventarioActualizado', handleInvBlocks);
     }, []);
 
 
@@ -499,14 +512,14 @@ export const TicketsPage = () => {
 
     const handleEditTicket = (ticket) => {
         if (isEntregado(ticket.EstadoId)) {
-            showToast.warning('Un ticket ENTREGADO ya no se puede editar', {
+            showToast.warning('A DELIVERED ticket can no longer be edited', {
                 duration: 3000,
                 position: "top-right",
             });
             return;
         }
         if (ticket.PrioridadNombre === 'CRITICA' && !isEstadoCompletado(ticket.EstadoId)) {
-            showToast.warning('No se puede editar un ticket crítico en curso', {
+            showToast.warning('Cannot edit an in-progress critical ticket', {
                 duration: 3000,
                 position: "top-right",
             });
@@ -519,24 +532,41 @@ export const TicketsPage = () => {
     const handleCerrarTicket = async (ticket) => {
         try {
             if (!isAdmin) {
-                showToast.error('Solo los administradores pueden cerrar tickets', {
+                showToast.error('Only administrators can close tickets', {
                     duration: 3000,
                     position: "top-right",
                 });
                 return;
             }
 
+            // Checklist indicador (no bloquea): ¿ya se puede cerrar?
+            let checklistHtml = '';
+            try {
+                const r = await api.get(`/ticketListoParaCierre/${ticket.IdTicket}`);
+                const checks = r.data?.checks || [];
+                if (checks.length > 0) {
+                    checklistHtml = '<div class="swal-checklist">' + checks.map(c =>
+                        `<div class="swal-check-row ${c.ok ? 'ok' : 'falta'}">` +
+                        `<span>${c.ok ? '✅' : '❌'}</span>` +
+                        `<span><strong>${c.etiqueta}</strong><br><small>${c.detalle || ''}</small></span>` +
+                        `</div>`
+                    ).join('') + '</div>';
+                }
+            } catch (e) {
+                console.error('No se pudo cargar el checklist:', e);
+            }
+
             const { value: comentario } = await Swal.fire({
-                title: '¿Cerrar ticket?',
-                html: `¿Deseas cerrar el ticket <strong>#${ticket.IdTicket}</strong>?`,
+                title: 'Close ticket?',
+                html: `Do you want to close ticket <strong>#${ticket.IdTicket}</strong>?${checklistHtml}`,
                 icon: 'question',
                 input: 'textarea',
-                inputPlaceholder: 'Comentario de cierre (opcional)',
+                inputPlaceholder: 'Closing comment (optional)',
                 showCancelButton: true,
                 confirmButtonColor: '#28a745',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: 'Sí, cerrar',
-                cancelButtonText: 'Cancelar',
+                confirmButtonText: 'Yes, close',
+                cancelButtonText: 'Cancel',
                 background: '#3F3F42',
                 color: '#fff',
                 customClass: {
@@ -561,7 +591,7 @@ export const TicketsPage = () => {
             }
         } catch (error) {
             console.error(error);
-            showToast.error(error.response?.data?.error || 'Error al cerrar ticket', {
+            showToast.error(error.response?.data?.error || 'Error closing ticket', {
                 duration: 4000,
                 position: "top-right",
             });
@@ -569,23 +599,16 @@ export const TicketsPage = () => {
     };
 
     const handleDeleteTicket = async (ticket) => {
-        if (isEntregado(ticket.EstadoId)) {
-            showToast.warning('Un ticket ENTREGADO no se puede mover a papelera', {
-                duration: 3000,
-                position: "top-right",
-            });
-            return;
-        }
         try {
             const result = await Swal.fire({
-                title: '¿Mover a papelera?',
-                html: `¿Deseas mover el ticket <strong>#${ticket.IdTicket}</strong> a la papelera?<br>Podrás recuperarlo después.`,
+                title: 'Move to trash?',
+                html: `Do you want to move ticket <strong>#${ticket.IdTicket}</strong> to trash?<br>You can restore it later.`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#D71928',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: 'Sí, mover a papelera',
-                cancelButtonText: 'Cancelar',
+                confirmButtonText: 'Yes, move to trash',
+                cancelButtonText: 'Cancel',
                 background: '#3F3F42',
                 color: '#fff',
                 customClass: {
@@ -606,7 +629,7 @@ export const TicketsPage = () => {
             }
         } catch (error) {
             console.error(error);
-            showToast.error('Error al mover ticket a papelera', {
+            showToast.error('Error moving ticket to trash', {
                 duration: 4000,
                 position: "top-right",
             });
@@ -616,14 +639,14 @@ export const TicketsPage = () => {
     const handleRestaurarTicket = async (ticket) => {
         try {
             const result = await Swal.fire({
-                title: '¿Restaurar ticket?',
-                html: `¿Deseas restaurar el ticket <strong>#${ticket.IdTicket}</strong>?`,
+                title: 'Restore ticket?',
+                html: `Do you want to restore ticket <strong>#${ticket.IdTicket}</strong>?`,
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#28a745',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: 'Sí, restaurar',
-                cancelButtonText: 'Cancelar',
+                confirmButtonText: 'Yes, restore',
+                cancelButtonText: 'Cancel',
                 background: '#3F3F42',
                 color: '#fff',
                 customClass: {
@@ -644,7 +667,7 @@ export const TicketsPage = () => {
             }
         } catch (error) {
             console.error(error);
-            showToast.error('Error al restaurar ticket', {
+            showToast.error('Error restoring ticket', {
                 duration: 4000,
                 position: "top-right",
             });
@@ -654,14 +677,14 @@ export const TicketsPage = () => {
     const handleDeletePermanente = async (ticket) => {
         try {
             const result = await Swal.fire({
-                title: '¿Eliminar permanentemente?',
-                html: `¿Estás seguro de eliminar el ticket <strong>#${ticket.IdTicket}</strong>?<br>Esta acción no se puede deshacer.`,
+                title: 'Delete permanently?',
+                html: `Are you sure you want to delete ticket <strong>#${ticket.IdTicket}</strong>?<br>This action cannot be undone.`,
                 icon: 'error',
                 showCancelButton: true,
                 confirmButtonColor: '#D71928',
                 cancelButtonColor: '#64748b',
-                confirmButtonText: 'Sí, eliminar',
-                cancelButtonText: 'Cancelar',
+                confirmButtonText: 'Yes, delete',
+                cancelButtonText: 'Cancel',
                 background: '#3F3F42',
                 color: '#fff',
                 customClass: {
@@ -682,7 +705,7 @@ export const TicketsPage = () => {
             }
         } catch (error) {
             console.error(error);
-            showToast.error('Error al eliminar ticket', {
+            showToast.error('Error deleting ticket', {
                 duration: 4000,
                 position: "top-right",
             });
@@ -690,14 +713,25 @@ export const TicketsPage = () => {
     };
 
     // ============ FUNCIÓN PARA CAMBIAR ESTADO DESDE BARRA DE PROGRESO ============
+    // Permite avanzar Y regresar (queda registrado en el historial).
     const handleStepClick = async (ticketId, estadoId, estadoNombre) => {
+        const ticket = tickets.find(t => t.IdTicket === ticketId);
+        const ordenActual = getEstado(ticket?.EstadoId)?.Orden;
+        const ordenNuevo = getEstado(estadoId)?.Orden;
+        const esRegreso = ordenActual !== undefined && ordenNuevo !== undefined && ordenNuevo < ordenActual;
+
         const { value: comentario } = await Swal.fire({
-            title: `Marcar como "${estadoNombre}"`,
+            title: esRegreso ? `Back to "${estadoNombre}"` : `Mark as "${estadoNombre}"`,
+            html: esRegreso
+                ? `You are about to <strong>move back</strong> ticket <strong>#${ticketId}</strong> to a previous status.<br>It will be recorded in history.`
+                : undefined,
+            icon: esRegreso ? 'warning' : 'question',
             input: 'textarea',
-            inputPlaceholder: 'Comentario (opcional)',
+            inputPlaceholder: esRegreso ? 'Reason for moving back (optional)' : 'Comment (optional)',
             showCancelButton: true,
-            confirmButtonText: 'Confirmar',
-            cancelButtonText: 'Cancelar',
+            confirmButtonColor: esRegreso ? '#D71928' : '#28a745',
+            confirmButtonText: esRegreso ? 'Yes, go back' : 'Confirm',
+            cancelButtonText: 'Cancel',
             background: '#3F3F42',
             color: '#fff',
             customClass: { popup: 'swal-dark-popup', input: 'swal-dark-input' }
@@ -706,15 +740,18 @@ export const TicketsPage = () => {
         if (comentario === undefined) return;
 
         try {
-            await api.put(`/ticketActualizarEstado/${ticketId}`, {
+            const response = await api.put(`/ticketActualizarEstado/${ticketId}`, {
                 EstadoId: estadoId,
                 UsuarioId: user.noEmp,
                 Comentario: comentario || ''
             });
-            showToast.success(`Estado cambiado a ${estadoNombre}`, { duration: 3000, position: "top-right" });
+            showToast.success(`Status changed to ${estadoNombre}`, { duration: 3000, position: "top-right" });
+            if (response.data?.warning) {
+                showToast.warning(response.data.warning, { duration: 6000, position: "top-right" });
+            }
             fetchTickets();
         } catch (error) {
-            showToast.error(error.response?.data?.error || 'Error al cambiar estado', { duration: 4000, position: "top-right" });
+            showToast.error(error.response?.data?.error || 'Error changing status', { duration: 4000, position: "top-right" });
         }
     };
 
@@ -764,15 +801,15 @@ export const TicketsPage = () => {
                         </div>
                         <div className="stat-item">
                             <span className="stat-number">{inProcessCount}</span>
-                            <span className="stat-label">En Proceso</span>
+                            <span className="stat-label">In Progress</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-number">{completedCount}</span>
-                            <span className="stat-label">Completados</span>
+                            <span className="stat-label">Completed</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-number">{entregadosCount}</span>
-                            <span className="stat-label">Entregados</span>
+                            <span className="stat-label">Delivered</span>
                         </div>
                     </div>
                     {activeTab === 'active' && (
@@ -790,7 +827,7 @@ export const TicketsPage = () => {
                             <FiSearch />
                             <input
                                 type="text"
-                                placeholder={activeTab === 'papelera' ? "Buscar en papelera..." : "Buscar tickets..."}
+                                placeholder={activeTab === 'papelera' ? "Search trash..." : "Search tickets..."}
                                 value={filters.search}
                                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                             />
@@ -800,32 +837,32 @@ export const TicketsPage = () => {
                             onClick={() => setShowFilters(!showFilters)}
                         >
                             <FiFilter />
-                            {showFilters ? 'Ocultar filtros' : 'Filtros'}
+                            {showFilters ? 'Hide filters' : 'Filters'}
                         </button>
                     </div>
 
                     {showFilters && (
                         <div className="filters-expanded">
                             <div className="filter-group">
-                                <label>Prioridad</label>
+                                <label>Priority</label>
                                 <select
                                     value={filters.prioridad}
                                     onChange={(e) => setFilters({ ...filters, prioridad: e.target.value })}
                                 >
-                                    <option value="All">Todas</option>
-                                    <option value="CRITICA">Crítica</option>
-                                    <option value="ALTA">Alta</option>
-                                    <option value="MEDIA">Media</option>
-                                    <option value="BAJA">Baja</option>
+                                    <option value="All">All</option>
+                                    <option value="CRITICA">Critical</option>
+                                    <option value="ALTA">High</option>
+                                    <option value="MEDIA">Medium</option>
+                                    <option value="BAJA">Low</option>
                                 </select>
                             </div>
                             <div className="filter-group">
-                                <label>Área</label>
+                                <label>Area</label>
                                 <select
                                     value={filters.area}
                                     onChange={(e) => setFilters({ ...filters, area: e.target.value })}
                                 >
-                                    <option value="All">Todas</option>
+                                    <option value="All">All</option>
                                     {areas.map(area => (
                                         <option key={area.IdArea} value={area.IdArea}>
                                             {area.NombreArea}
@@ -834,7 +871,7 @@ export const TicketsPage = () => {
                                 </select>
                             </div>
                             <div className="filter-group">
-                                <label>Fecha</label>
+                                <label>Date</label>
                                 <input
                                     type="date"
                                     value={filters.fecha}
@@ -853,7 +890,7 @@ export const TicketsPage = () => {
                                     })}
                                 >
                                     <FiX />
-                                    Limpiar filtros
+                                    Clear filters
                                 </button>
                             )}
                         </div>
@@ -867,7 +904,7 @@ export const TicketsPage = () => {
                         onClick={() => setActiveTab('active')}
                     >
                         <FiFileText />
-                        Tickets Activos
+                        Active Tickets
                         <span className="tab-badge">
                             {tickets.filter(t => t.Activo === 1 && !estadoCompletadoIds.includes(t.EstadoId)).length}
                         </span>
@@ -877,7 +914,7 @@ export const TicketsPage = () => {
                         onClick={() => setActiveTab('completados')}
                     >
                         <FiCheckCircle />
-                        Completados
+                        Completed
                         <span className="tab-badge">
                             {tickets.filter(t => t.Activo === 1 && estadoCompletadoIds.includes(t.EstadoId) && !isEntregado(t.EstadoId)).length}
                         </span>
@@ -887,7 +924,7 @@ export const TicketsPage = () => {
                         onClick={() => setActiveTab('entregados')}
                     >
                         <FiPackage />
-                        Entregados
+                        Delivered
                         <span className="tab-badge">
                             {tickets.filter(t => t.Activo === 1 && isEntregado(t.EstadoId)).length}
                         </span>
@@ -897,7 +934,7 @@ export const TicketsPage = () => {
                         onClick={() => setActiveTab('papelera')}
                     >
                         <FiArchive />
-                        Papelera
+                        Trash
                         <span className="tab-badge">{tickets.filter(t => t.Activo === 0).length}</span>
                     </button>
                 </div>
@@ -905,20 +942,20 @@ export const TicketsPage = () => {
                 {/* TICKETS GRID */}
                 <div className="tickets-grid">
                     {loading ? (
-                        <div className="loading-state">Cargando tickets...</div>
+                        <div className="loading-state">Loading tickets...</div>
                     ) : filteredTickets.length === 0 ? (
                         <div className="empty-state-tickets">
                             {activeTab === 'papelera' ? (
                                 <>
                                     <FiArchive size={48} />
-                                    <h3>Papelera vacía</h3>
-                                    <p>No hay tickets en la papelera</p>
+                                    <h3>Trash is empty</h3>
+                                    <p>No tickets in trash</p>
                                 </>
                             ) : activeTab === 'entregados' ? (
                                 <>
                                     <FiPackage size={48} />
-                                    <h3>Sin entregados</h3>
-                                    <p>Aún no hay tickets entregados</p>
+                                    <h3>No delivered tickets</h3>
+                                    <p>There are no delivered tickets yet</p>
                                 </>
                             ) : (
                                 <>
@@ -933,6 +970,21 @@ export const TicketsPage = () => {
                             const estadoNombre = getEstadoNombre(ticket.EstadoId);
                             const steps = getProgressSteps(ticket.EstadoId);
                             const fechaDeseada = ticket.FechaDeseadaFormateada || ticket.FechaDeseada || 'N/A';
+                            // Avance efectivo por paso (EstadoId + flags de bloques).
+                            // RECIBIDO cuenta como hecho en cuanto hay avance posterior;
+                            // el pulso va en el primer paso pendiente.
+                            const isStepDone = (s) => {
+                                if (s.completed) return true;
+                                const n = normalizeStateName(s.label);
+                                return (n === 'diseno' && hasAllDrawingsComplete(ticket)) ||
+                                    (n === 'programa' && hasAllProgramsComplete(ticket)) ||
+                                    (n === 'ensamble' && hasAllEnsamblesComplete(ticket)) ||
+                                    (n === 'materiales' && hasAllMaterialesComplete(ticket));
+                            };
+                            const doneFlags = steps.map(s => isStepDone(s));
+                            if (doneFlags.slice(1).some(Boolean)) doneFlags[0] = true;
+                            const firstPendingIdx = doneFlags.findIndex(d => !d);
+                            const doneCount = doneFlags.filter(Boolean).length;
 
                             return (
                                 <div id={`ticket-card-${ticket.IdTicket}`} className={`ticket-card-modern ${highlightTicketId === ticket.IdTicket ? 'ticket-highlight' : ''}`} key={ticket.IdTicket}>
@@ -968,23 +1020,23 @@ export const TicketsPage = () => {
                                             <div className="info-item">
                                                 <FiUser className="info-icon" />
                                                 <div>
-                                                    <small>Solicitante</small>
-                                                    <strong>{ticket.SolicitanteNombre || 'Desconocido'}</strong>
+                                                    <small>Requester</small>
+                                                    <strong>{ticket.SolicitanteNombre || 'Unknown'}</strong>
                                                 </div>
                                             </div>
                                             <div className="info-item">
                                                 <FiCalendar className="info-icon" />
                                                 <div>
-                                                    <small>Fecha Deseada</small>
+                                                    <small>Desired Date</small>
                                                     <strong>{fechaDeseada}</strong>
                                                 </div>
                                             </div>
                                             <div className="info-item">
                                                 <FiFlag className="info-icon" />
                                                 <div>
-                                                    <small>Prioridad</small>
+                                                    <small>Priority</small>
                                                     <strong className={getPriorityColor(ticket.PrioridadNombre)}>
-                                                        {getPriorityIcon(ticket.PrioridadNombre)} {ticket.PrioridadNombre || 'Media'}
+                                                        {getPriorityIcon(ticket.PrioridadNombre)} {ticket.PrioridadNombre || 'Medium'}
                                                     </strong>
                                                 </div>
                                             </div>
@@ -995,7 +1047,7 @@ export const TicketsPage = () => {
                                             <div className="ticket-blocks">
                                                 <div className="blocks-header">
                                                     <FiPackage className="blocks-icon" />
-                                                    <small>Bloques Solicitados</small>
+                                                    <small>Requested Blocks</small>
                                                 </div>
                                                 <div className="blocks-list">
                                                     {ticket.Detalles.map((detalle, idx) => {
@@ -1015,10 +1067,10 @@ export const TicketsPage = () => {
 
                                                         return (
                                                             <div key={idx} className={blockClass} title={
-                                                                isComplete ? 'Completo: Dibujos + Programas + Ensamble' :
-                                                                    hasDrawings && hasPrograms && hasEnsamble ? 'Listo para marcar completo' :
-                                                                        hasDrawings && hasPrograms ? 'Tiene dibujos y programas' :
-                                                                            hasDrawings ? 'Solo tiene dibujos' : 'Sin datos'
+                                                                isComplete ? 'Complete: Drawings + Programs + Assembly' :
+                                                                    hasDrawings && hasPrograms && hasEnsamble ? 'Ready to mark complete' :
+                                                                        hasDrawings && hasPrograms ? 'Has drawings and programs' :
+                                                                            hasDrawings ? 'Drawings only' : 'No data'
                                                             }>
                                                                 {isAdmin ? (
                                                                     <span
@@ -1027,7 +1079,7 @@ export const TicketsPage = () => {
                                                                             sessionStorage.setItem("selectedBlockId", noParte);
                                                                             navigate("/blocksdetails");
                                                                         }}
-                                                                        title={`Click para ver detalles de ${noParte}`}
+                                                                        title={`Click to view details of ${noParte}`}
                                                                     >
                                                                         {noParte}
                                                                     </span>
@@ -1037,11 +1089,17 @@ export const TicketsPage = () => {
                                                                     </span>
                                                                 )}
                                                                 <span className="block-quantity">×{detalle.Cantidad}</span>
+                                                                <span
+                                                                    className={`block-apartado ${Number(detalle.Apartado || 0) >= Number(detalle.Cantidad) && Number(detalle.Cantidad) > 0 ? 'full' : ''}`}
+                                                                    title={`Reserved: ${Number(detalle.Apartado || 0)} of ${detalle.Cantidad}`}
+                                                                >
+                                                                    {Number(detalle.Apartado || 0)}/{detalle.Cantidad}
+                                                                </span>
                                                                 {(hasDrawings || hasPrograms || hasEnsamble) && (
                                                                     <div className="block-status-indicators">
-                                                                        {hasDrawings && <span className="status-dot drawings" title="Dibujos" />}
-                                                                        {hasPrograms && <span className="status-dot programs" title="Programas" />}
-                                                                        {hasEnsamble && <span className="status-dot ensamble" title="Ensamble" />}
+                                                                        {hasDrawings && <span className="status-dot drawings" title="Drawings" />}
+                                                                        {hasPrograms && <span className="status-dot programs" title="Programs" />}
+                                                                        {hasEnsamble && <span className="status-dot ensamble" title="Assembly" />}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -1055,15 +1113,9 @@ export const TicketsPage = () => {
                                         {steps.length > 0 && (
                                             <div className="ticket-progress">
                                                 <div className="progress-header">
-                                                    <small>Progreso</small>
+                                                    <small>Progress</small>
                                                     <span className="progress-percentage">
-                                                        {steps.filter(s => {
-                                                            if (s.completed) return true;
-                                                            const n = normalizeStateName(s.label);
-                                                            return (n === 'diseno' && hasAllDrawingsComplete(ticket)) ||
-                                                                (n === 'programa' && hasAllProgramsComplete(ticket)) ||
-                                                                (n === 'ensamble' && hasAllEnsamblesComplete(ticket));
-                                                        }).length}/{steps.length}
+                                                        {doneCount}/{steps.length}
                                                     </span>
                                                 </div>
                                                 <div className="progress-steps">
@@ -1072,25 +1124,20 @@ export const TicketsPage = () => {
                                                         const isAuto = estadoInfo?.EsAutomatico;
                                                         const isManual = !isAuto;
 
-                                                        // Auto-avance SOLO VISUAL (no toca EstadoId en BD):
-                                                        // DISEÑO/PROGRAMA/ENSAMBLE se ven completos cuando TODOS
-                                                        // los bloques del ticket tienen su flag en true.
-                                                        // Al desmarcar un flag, el paso deja de verse completo.
-                                                        const stepLabelNorm = normalizeStateName(step.label);
-                                                        const autoCompleted =
-                                                            (stepLabelNorm === 'diseno' && hasAllDrawingsComplete(ticket)) ||
-                                                            (stepLabelNorm === 'programa' && hasAllProgramsComplete(ticket)) ||
-                                                            (stepLabelNorm === 'ensamble' && hasAllEnsamblesComplete(ticket));
-                                                        const effectiveCompleted = step.completed || autoCompleted;
-                                                        const canClick = isAdmin && isManual && !effectiveCompleted && step.id !== ticket.EstadoId;
+                                                        // Auto-avance SOLO VISUAL (no toca EstadoId en BD).
+                                                        const effectiveCompleted = doneFlags[index];
+                                                        const isCurrent = index === firstPendingIdx;
+                                                        // Admin puede avanzar o REGRESAR a cualquier estado manual
+                                                        // (queda registrado en el historial).
+                                                        const canClick = isAdmin && isManual && step.id !== ticket.EstadoId;
 
                                                         return (
-                                                            <div key={index} className={`step ${effectiveCompleted ? 'completed' : ''} ${step.active ? 'active' : ''} ${canClick ? 'clickable' : ''} ${isAuto ? 'auto' : ''}`}>
+                                                            <div key={index} className={`step ${effectiveCompleted ? 'completed' : ''} ${isCurrent ? 'active' : ''} ${canClick ? 'clickable' : ''} ${isAuto ? 'auto' : ''}`}>
                                                                 {canClick ? (
                                                                     <button
                                                                         className="step-btn"
                                                                         onClick={() => handleStepClick(ticket.IdTicket, step.id, step.label)}
-                                                                        title={`Cambiar estado a ${step.label}`}
+                                                                        title={effectiveCompleted ? `Back to ${step.label}` : `Change status to ${step.label}`}
                                                                     >
                                                                         <div className="step-circle">
                                                                             {effectiveCompleted ? '✓' : index + 1}
@@ -1115,7 +1162,7 @@ export const TicketsPage = () => {
                                         {/* FOOTER - Acciones */}
                                         <div className="ticket-footer-modern">
                                             <span className="ticket-category-modern">
-                                                {ticket.NombreArea || 'Sin área'}
+                                                {ticket.NombreArea || 'No area'}
                                             </span>
                                             <div className="ticket-actions">
                                                 {activeTab === 'papelera' ? (
@@ -1123,21 +1170,21 @@ export const TicketsPage = () => {
                                                         <button
                                                             className="action-btn restore-btn"
                                                             onClick={() => handleRestaurarTicket(ticket)}
-                                                            title="Restaurar ticket"
+                                                            title="Restore ticket"
                                                         >
                                                             <FiRefreshCw />
                                                         </button>
                                                         <button
                                                             className="action-btn history-btn"
                                                             onClick={() => navigate(`/tickets/${ticket.IdTicket}/historial`)}
-                                                            title="Ver historial"
+                                                            title="View history"
                                                         >
                                                             <FiClock />
                                                         </button>
                                                         <button
                                                             className="action-btn delete-permanent-btn"
                                                             onClick={() => handleDeletePermanente(ticket)}
-                                                            title="Eliminar permanentemente"
+                                                            title="Delete permanently"
                                                         >
                                                             <FiDelete />
                                                         </button>
@@ -1147,14 +1194,14 @@ export const TicketsPage = () => {
                                                         <button
                                                             className="action-btn view-btn"
                                                             onClick={() => handleViewDetails(ticket)}
-                                                            title="Ver detalles"
+                                                            title="View details"
                                                         >
                                                             <FiEye />
                                                         </button>
                                                         <button
                                                             className="action-btn history-btn"
                                                             onClick={() => navigate(`/tickets/${ticket.IdTicket}/historial`)}
-                                                            title="Ver historial"
+                                                            title="View history"
                                                         >
                                                             <FiClock />
                                                         </button>
@@ -1163,31 +1210,28 @@ export const TicketsPage = () => {
                                                                 <button
                                                                     className="action-btn view-btn"
                                                                     onClick={() => handleEditTicket(ticket)}
-                                                                    title="Editar ticket"
+                                                                    title="Edit ticket"
                                                                 >
-                                                                    <FiEdit2/>
+                                                                    <FiEdit2 />
                                                                 </button>
                                                                 {isAdmin && (
                                                                     <button
                                                                         className="action-btn complete-btn"
                                                                         onClick={() => handleCerrarTicket(ticket)}
-                                                                        title="Cerrar ticket"
+                                                                        title="Close ticket"
                                                                     >
                                                                         <FiCheckCircle />
                                                                     </button>
                                                                 )}
                                                             </>
                                                         )}
-                                                        {/* 🔒 ENTREGADO: solo lectura (ver + historial), sin papelera */}
-                                                        {!isEntregado(ticket.EstadoId) && (
-                                                            <button
-                                                                className="action-btn delete-btn"
-                                                                onClick={() => handleDeleteTicket(ticket)}
-                                                                title="Mover a papelera"
-                                                            >
-                                                                <FiTrash2 />
-                                                            </button>
-                                                        )}
+                                                        <button
+                                                            className="action-btn delete-btn"
+                                                            onClick={() => handleDeleteTicket(ticket)}
+                                                            title="Move to trash"
+                                                        >
+                                                            <FiTrash2 />
+                                                        </button>
                                                     </>
                                                 )}
                                             </div>
@@ -1203,7 +1247,7 @@ export const TicketsPage = () => {
                 {!loading && filteredTickets.length > 0 && (
                     <div className="blocks-pagination">
                         <div className="pagination-info">
-                            Mostrando {indexFirst + 1} - {Math.min(indexLast, filteredTickets.length)} de {filteredTickets.length} tickets
+                            Showing {indexFirst + 1} - {Math.min(indexLast, filteredTickets.length)} of {filteredTickets.length} tickets
                         </div>
                         <div className="pagination-controls">
                             <button
@@ -1241,6 +1285,7 @@ export const TicketsPage = () => {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 title="New Ticket"
+                className="tickets-wide"
             >
                 <TicketsForm
                     onSuccess={() => {
@@ -1255,6 +1300,7 @@ export const TicketsPage = () => {
                 isOpen={isEditModalOpen}
                 onClose={() => setIsEditModalOpen(false)}
                 title="Edit Ticket"
+                className="tickets-wide"
             >
                 <TicketsForm
                     ticket={selectedTicket}
